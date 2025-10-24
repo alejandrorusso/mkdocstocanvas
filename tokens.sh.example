@@ -1,0 +1,7 @@
+#!/bin/bash
+# Canvas API Configuration
+# Copy this file and fill in your actual values
+
+export CANVAS_API_TOKEN="your_canvas_api_token_here"
+export CANVAS_BASE_URL="https://canvas.instructure.com"  # or your institution's Canvas URL
+export CANVAS_COURSE_ID="your_course_id_here"

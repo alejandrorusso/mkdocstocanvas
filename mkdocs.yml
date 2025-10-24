@@ -1,0 +1,72 @@
+site_name: Introduction to Machine Learning
+site_description: A comprehensive course on machine learning fundamentals
+site_author: Your Name
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  language: en
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+      primary: indigo
+      accent: indigo
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+      primary: indigo
+      accent: indigo
+
+plugins:
+  - search
+  - pdf-export:
+      combined: false
+      media_type: print
+      enabled_if_env: ENABLE_PDF_EXPORT
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - md_in_html
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
+
+nav:
+  - Home:
+    - index.md
+  - Lecture 1 - Introduction:
+    - lectures/01-introduction.md
+  - Lecture 2 - Linear Regression:
+    - lectures/02-linear-regression.md
+  - Lecture 3 - Neural Networks:
+    - lectures/03-neural-networks.md
+  - Lab 1 - Python Basics:
+    - labs/lab1.md
+  - Lab 2 - Implementing Linear Regression:
+    - labs/lab2.md
