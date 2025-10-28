@@ -1,7 +1,11 @@
-.PHONY: serve pdf delete-pages delete-modules delete-labs upload-pages upload-modules upload-labs clean
+.PHONY: serve serve-full pdf delete-pages delete-modules delete-labs upload-pages upload-modules upload-labs clean
 
-# Serve the documentation locally
+# Serve the documentation locally (fast mode - better live reload)
 serve:
+	mkdocs serve -a 0.0.0.0:8000 --watch-theme --livereload
+
+# Serve with all plugins enabled (slower reload)
+serve-full:
 	mkdocs serve -a 0.0.0.0:8000
 
 # Build site and generate PDFs (dependency for upload-modules)

@@ -8,12 +8,14 @@ A complete system for publishing MkDocs-based course content to Canvas LMS, with
 - 📄 **PDF Generation**: Automatically generates PDFs from markdown content
 - 🔗 **Smart Linking**: Maintains internal links between course pages
 - 🧪 **Lab Management**: Separate workflow for managing lab assignments
+- 📊 **Excel Sheet Rendering**: Embed Excel spreadsheets with full color preservation
 - 🎨 **Rich Content**: Full support for:
   - Mathematical formulas (LaTeX/MathJax)
-  - Code syntax highlighting
+  - Code syntax highlighting with Pygments
   - Admonitions (Note, Warning, Important, etc.)
   - Images and diagrams
   - Tables and lists
+  - Excel spreadsheets with theme colors
 
 ## Table of Contents
 
@@ -45,6 +47,7 @@ pip install mkdocs-include-markdown-plugin && \
 pip install mkdocs-material && \
 pip install mkdocs-excel-plugin && \
 pip install mkdocs-page-pdf && \
+pip install openpyxl && \
 pip install mkdocs
 ```
 
@@ -168,7 +171,15 @@ Preview your content locally:
 make serve
 ```
 
-This starts a local server at `http://localhost:8000`.
+This starts a local server at `http://localhost:8000` with live reload enabled.
+
+**Note**: After editing markdown files, mkdocs will automatically rebuild. You may need to manually refresh your browser (F5) if auto-refresh doesn't work.
+
+For full plugin support (slower):
+
+```bash
+make serve-full
+```
 
 ### Building PDFs
 
@@ -182,11 +193,29 @@ PDFs are saved to the `pdf/` directory.
 
 ### Publishing to Canvas
 
-#### Complete Workflow (Recommended)
+#### Complete Rebuild (Recommended for Initial Setup)
 
-Upload everything (pages, modules, and PDFs):
+Completely rebuild your Canvas course from scratch:
 
-Upload only pages 
+```bash
+./rebuild_canvas.sh
+```
+
+This script performs a complete rebuild:
+1. Cleans generated files
+2. Deletes all modules from Canvas
+3. Deletes all pages from Canvas
+4. Deletes all lab assignments from Canvas
+5. Generates PDFs
+6. Uploads all pages to Canvas
+7. Creates modules with pages and PDFs
+8. Uploads lab assignments
+
+**⚠️ Warning**: This deletes all existing content! Use only for fresh setup or complete updates.
+
+#### Individual Workflows
+
+Upload only pages:
 
 ```bash
 make upload-pages
@@ -198,6 +227,8 @@ Upload only lab assignments:
 make upload-labs
 ```
 
+Upload modules (includes PDF generation):
+
 ```bash
 make upload-modules
 ```
@@ -207,7 +238,7 @@ This command:
 2. Generates PDFs
 3. Uploads all pages to Canvas
 4. Creates modules with pages and PDFs
-5. Publish all the modules 
+5. Publishes all the modules 
 
 ### Deleting Content
 
@@ -312,6 +343,33 @@ def hello_world():
 ```markdown
 ![Alt text](../assets/images/diagram.png)
 ```
+
+#### Excel Spreadsheets
+
+Embed Excel spreadsheets directly in your markdown with full color preservation:
+
+```markdown
+{{ render_excel_sheet('./path/to/spreadsheet.xlsx', 'SheetName') }}
+```
+
+**Example:**
+
+```markdown
+## Course Schedule
+
+{{ render_excel_sheet('./schedule.xlsx', 'Schedule') }}
+```
+
+Features:
+- Preserves cell background colors (including theme colors with tints)
+- Preserves text colors and bold formatting
+- Extracts colors from custom Excel themes
+- Renders as responsive HTML tables
+- Works in both local preview and Canvas
+
+**Requirements:**
+- Install `mkdocs-excel-plugin` and `openpyxl`
+- Place Excel files in your `docs/` directory
 
 #### Tables
 
