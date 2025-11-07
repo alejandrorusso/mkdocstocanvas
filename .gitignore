@@ -1,0 +1,35 @@
+# MkDocs build output
+/site/
+/pdf/
+
+# Node.js (if using npm for any tools)
+node_modules/
+package-lock.json
+
+# Canvas API credentials and tokens
+tokens.sh
+
+# Canvas upload state cache
+.canvas_upload_state.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

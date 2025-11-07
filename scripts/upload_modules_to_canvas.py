@@ -204,11 +204,17 @@ def add_page_to_module(module_id, page_url, page_title, position):
     result = make_api_request('POST', f'/courses/{COURSE_ID}/modules/{module_id}/items', json=item_data)
     return result
 
-def find_pdf_file(markdown_path, pdf_dir):
+def find_pdf_file(markdown_path, page_title, pdf_dir):
     """Find the corresponding PDF file for a markdown file"""
-    # Get the base name without extension
+    # Extract letter prefix from page title (e.g., "A." from "A. Course Syllabus")
+    letter_prefix = page_title.split('.')[0] + '.'
+
+    # Get the basename without extension from markdown path
     base_name = markdown_path.stem
-    pdf_path = pdf_dir / f"{base_name}.pdf"
+
+    # Construct PDF filename: "{Letter}. {basename}.pdf"
+    pdf_filename = f"{letter_prefix} {base_name}.pdf"
+    pdf_path = pdf_dir / pdf_filename
 
     if pdf_path.exists():
         return pdf_path
@@ -375,7 +381,7 @@ def process_modules():
             time.sleep(0.3)  # Rate limiting
 
             # Find and upload corresponding PDF
-            pdf_path = find_pdf_file(markdown_path, pdf_dir)
+            pdf_path = find_pdf_file(markdown_path, canvas_page_title, pdf_dir)
             if pdf_path:
                 pdf_filename = f"{canvas_page_title}.pdf"
 
