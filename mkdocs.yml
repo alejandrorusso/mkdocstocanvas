@@ -5,7 +5,7 @@ site_author: Your Name
 theme:
   name: material
   features:
-    - navigation.tabs
+    # - navigation.tabs
     - navigation.sections
     - toc.integrate
     - search.suggest

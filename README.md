@@ -516,5 +516,5 @@ Contributions are welcome! Please:
 
 ## License
 
-This project is provided as-is for educational purposes. Modify and use as needed for your courses.
+This project is licensed under the Mozilla Public License 2.0 (MPL-2.0). See the [LICENSE](LICENSE) file for details.
 
