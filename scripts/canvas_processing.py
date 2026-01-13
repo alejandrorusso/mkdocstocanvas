@@ -784,6 +784,8 @@ def process_markdown_to_html(content: str, markdown_file_path: str, canvas_base_
         'toc',             # Table of contents
         'sane_lists',      # Better list handling
         'admonition',      # Note/warning blocks
+        'pymdownx.details',      # Support collapsible notes
+        'pymdownx.superfences',  # (requirement of pymdownx.details)
         'attr_list',       # Attribute lists
         'def_list',        # Definition lists
         'footnotes',       # Footnotes
