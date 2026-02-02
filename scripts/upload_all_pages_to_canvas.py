@@ -19,6 +19,9 @@ import requests
 import time
 from pathlib import Path
 import re
+import hashlib
+import json
+from datetime import datetime
 
 try:
     import markdown
@@ -59,6 +62,70 @@ HEADERS = {
 # Track uploaded files and pages for link resolution
 uploaded_files = {}  # filename -> Canvas URL
 uploaded_pages = {}  # markdown_file -> Canvas page URL
+
+# Metadata file for tracking upload state
+METADATA_FILE = Path('.canvas_upload_state.json')
+
+def load_upload_metadata():
+    """Load upload metadata from file"""
+    if METADATA_FILE.exists():
+        try:
+            with open(METADATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"  ⚠ Warning: Could not load upload metadata: {e}")
+            return {}
+    return {}
+
+def save_upload_metadata(metadata):
+    """Save upload metadata to file"""
+    try:
+        with open(METADATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, sort_keys=True)
+    except Exception as e:
+        print(f"  ⚠ Warning: Could not save upload metadata: {e}")
+
+def compute_file_hash(file_path):
+    """Compute MD5 hash of a file's contents"""
+    try:
+        with open(file_path, 'rb') as f:
+            return hashlib.md5(f.read()).hexdigest()
+    except Exception as e:
+        print(f"  ⚠ Warning: Could not compute hash for {file_path}: {e}")
+        return None
+
+def needs_upload(markdown_path, metadata, docs_root):
+    """Check if a file needs to be uploaded based on its hash"""
+    # Get relative path for metadata key
+    try:
+        rel_path = str(markdown_path.relative_to(docs_root))
+    except:
+        return True  # If can't compute relative path, upload it
+
+    # Compute current hash
+    current_hash = compute_file_hash(markdown_path)
+    if current_hash is None:
+        return True  # If can't compute hash, upload it
+
+    # Check if we have metadata for this file
+    if rel_path not in metadata:
+        return True  # New file, needs upload
+
+    stored_info = metadata[rel_path]
+    stored_hash = stored_info.get('hash')
+
+    # Compare hashes
+    if stored_hash != current_hash:
+        return True  # File changed, needs upload
+
+    # Check if Canvas page still exists
+    page_url_slug = stored_info.get('page_url_slug')
+    if page_url_slug:
+        existing_page = get_existing_page(page_url_slug)
+        if not existing_page:
+            return True  # Page doesn't exist on Canvas, needs upload
+
+    return False  # File unchanged and page exists
 
 def make_api_request(method, endpoint, **kwargs):
     """Make API request with error handling"""
@@ -332,11 +399,18 @@ def parse_mkdocs_nav(mkdocs_path):
         print(f"ERROR: Failed to parse mkdocs.yml: {e}")
         return None
 
-def find_pdf_file(markdown_path, pdf_dir):
+def find_pdf_file(markdown_path, page_title, pdf_dir):
     """Find the PDF file corresponding to a markdown file"""
-    # Get the basename without extension
+    # Extract letter prefix from page title (e.g., "A." from "A. Course Syllabus")
+    letter_prefix = page_title.split('.')[0] + '.'
+
+    # Get the basename without extension from markdown path
     md_basename = Path(markdown_path).stem
-    pdf_path = pdf_dir / f"{md_basename}.pdf"
+
+    # Construct PDF filename: "{Letter}. {basename}.pdf"
+    pdf_filename = f"{letter_prefix} {md_basename}.pdf"
+    pdf_path = pdf_dir / pdf_filename
+
     if pdf_path.exists():
         return pdf_path
     return None
@@ -368,6 +442,11 @@ def process_all_pages():
     print(f"Connected to course: {course_info.get('name', 'Unknown')}")
     print("=" * 70)
 
+    # Load upload metadata
+    print("\nLoading upload metadata...")
+    metadata = load_upload_metadata()
+    print(f"Found metadata for {len(metadata)} files")
+
     # Parse mkdocs.yml navigation
     print("\nParsing mkdocs.yml navigation...")
     markdown_files = parse_mkdocs_nav(mkdocs_path)
@@ -378,6 +457,7 @@ def process_all_pages():
 
     # Collect pages to upload with their titles
     pages_to_upload = []
+    pages_to_skip = []
     page_index = 0  # Track page index for letter prefix (only for non-lab pages)
 
     for md_file in markdown_files:
@@ -403,10 +483,22 @@ def process_all_pages():
         letter_prefix = chr(65 + page_index)  # 65 is ASCII for 'A'
         prefixed_title = f"{letter_prefix}. {page_title}"
 
-        pages_to_upload.append((markdown_path, prefixed_title))
+        # Check if file needs upload
+        if needs_upload(markdown_path, metadata, docs_root):
+            pages_to_upload.append((markdown_path, prefixed_title))
+        else:
+            pages_to_skip.append((markdown_path, prefixed_title))
+            # Still track this page for link resolution
+            rel_path = markdown_path.relative_to(docs_root)
+            stored_info = metadata[str(rel_path)]
+            canvas_url = stored_info.get('canvas_url')
+            if canvas_url:
+                uploaded_pages[str(rel_path)] = canvas_url
+
         page_index += 1
 
-    print(f"Found {len(pages_to_upload)} pages to upload\n")
+    print(f"Found {len(pages_to_upload)} pages to upload")
+    print(f"Skipping {len(pages_to_skip)} unchanged pages\n")
 
     # Upload pages (two passes for link resolution)
     successful = 0
@@ -423,7 +515,7 @@ def process_all_pages():
         print(f"  Markdown file: {markdown_file}")
 
         # Check for corresponding PDF and upload it
-        pdf_file = find_pdf_file(markdown_file, pdf_dir)
+        pdf_file = find_pdf_file(markdown_file, page_title, pdf_dir)
         if pdf_file:
             print(f"    Uploading PDF: {pdf_file.name}...")
             try:
@@ -437,7 +529,14 @@ def process_all_pages():
 
         try:
             html_content = markdown_to_html(str(markdown_file), docs_root)
-            canvas_url = create_or_update_page(page_title, html_content, published=True)
+
+            # Get stored page_url_slug from metadata if it exists
+            rel_path = markdown_file.relative_to(docs_root)
+            stored_slug = None
+            if str(rel_path) in metadata:
+                stored_slug = metadata[str(rel_path)].get('page_url_slug')
+
+            canvas_url = create_or_update_page(page_title, html_content, published=True, page_url_slug=stored_slug)
 
             if canvas_url:
                 # Store for link resolution
@@ -447,6 +546,16 @@ def process_all_pages():
                 # Extract and store the actual page URL slug for Pass 2
                 page_url_slug = canvas_url.split('/pages/')[-1]
                 page_url_by_title[page_title] = page_url_slug
+
+                # Update metadata
+                file_hash = compute_file_hash(str(markdown_file))
+                metadata[str(rel_path)] = {
+                    'hash': file_hash,
+                    'canvas_url': canvas_url,
+                    'page_url_slug': page_url_slug,
+                    'page_title': page_title,
+                    'last_upload': datetime.now().isoformat()
+                }
 
                 print(f"  ✓ Success: {canvas_url}")
                 successful += 1
@@ -460,7 +569,13 @@ def process_all_pages():
 
         time.sleep(0.5)  # Rate limiting
 
+    # Save metadata after Pass 1
+    if successful > 0:
+        print("\nSaving upload metadata...")
+        save_upload_metadata(metadata)
+
     # Pass 2: Re-upload pages with resolved inter-page links
+    # Only run if pages were actually updated in Pass 1
     if successful > 0:
         print("\n" + "=" * 70)
         print("PASS 2: Resolving inter-page links...")
@@ -490,10 +605,16 @@ def process_all_pages():
 
         print(f"\n  Updated {updated}/{successful} pages with resolved links")
 
+        # Save metadata after Pass 2
+        if updated > 0:
+            print("  Saving upload metadata...")
+            save_upload_metadata(metadata)
+
     print("\n" + "=" * 70)
     print(f"Upload Summary:")
     print(f"  Successful: {successful}")
     print(f"  Failed: {failed}")
+    print(f"  Skipped (unchanged): {len(pages_to_skip)}")
     print(f"  Total: {len(pages_to_upload)}")
     print("=" * 70)
 
@@ -501,6 +622,9 @@ def process_all_pages():
         print("\n✓ Upload completed successfully!")
         print(f"\nPages are available at:")
         print(f"  {BASE_URL}/courses/{COURSE_ID}/pages")
+        return True
+    elif len(pages_to_skip) > 0 and failed == 0:
+        print("\n✓ All pages are up to date - nothing to upload")
         return True
     else:
         print("\n✗ No pages were uploaded successfully")
@@ -595,6 +719,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Canvas Bulk Page Upload/Management Script')
     parser.add_argument('--delete-pages', action='store_true',
                         help='Delete all pages from the course (requires confirmation)')
+    parser.add_argument('--force', action='store_true',
+                        help='Force upload all pages, ignoring cached metadata')
 
     args = parser.parse_args()
 
@@ -604,6 +730,14 @@ if __name__ == "__main__":
     if args.delete_pages:
         success = delete_all_pages()
     else:
+        # If force flag is set, clear metadata to force re-upload
+        if args.force:
+            print("⚠️  Force mode enabled - will upload all pages")
+            if METADATA_FILE.exists():
+                METADATA_FILE.unlink()
+                print("  Cleared metadata cache")
+            print("=" * 70)
+
         success = process_all_pages()
 
     sys.exit(0 if success else 1)

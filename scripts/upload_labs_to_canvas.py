@@ -136,34 +136,47 @@ def get_existing_assignment(assignment_name):
 def create_or_update_assignment(lab_name, html_content, points_possible=100):
     """Create a new assignment or update existing one"""
 
-    assignment_data = {
-        'assignment': {
-            'name': lab_name,
-            'description': html_content,
-            'points_possible': points_possible,
-            'submission_types': ['online_text_entry', 'online_upload'],
-            'grading_type': 'points',
-            'published': True,
-            'assignment_group_id': None,  # Will use default assignment group
-            'allowed_extensions': ['py', 'ipynb', 'txt', 'pdf', 'zip'],
-            'notify_of_update': False
-        }
-    }
-
     # Check if assignment exists
     existing_assignment = get_existing_assignment(lab_name)
 
     if existing_assignment:
+        # For updates: ONLY update the description (content)
+        # This preserves all other settings like deadlines, visibility, points, etc.
         assignment_id = existing_assignment['id']
-        print(f"Assignment '{lab_name}' already exists, updating...")
-        result = make_api_request('PUT', f'/courses/{COURSE_ID}/assignments/{assignment_id}', json=assignment_data)
+        print(f"Assignment '{lab_name}' already exists, updating content only...")
+
+        update_data = {
+            'assignment': {
+                'description': html_content,
+                'notify_of_update': False  # Don't notify students of content updates
+            }
+        }
+
+        result = make_api_request('PUT', f'/courses/{COURSE_ID}/assignments/{assignment_id}', json=update_data)
         if result:
-            print(f"✓ Successfully updated assignment: {lab_name}")
+            print(f"✓ Successfully updated assignment content: {lab_name}")
             print(f"  URL: {BASE_URL}/courses/{COURSE_ID}/assignments/{assignment_id}")
+            print(f"  Note: Other settings (deadline, points, visibility) were preserved")
             return True
     else:
+        # For new assignments: set all default values
         print(f"Creating new assignment: {lab_name}")
-        result = make_api_request('POST', f'/courses/{COURSE_ID}/assignments', json=assignment_data)
+
+        create_data = {
+            'assignment': {
+                'name': lab_name,
+                'description': html_content,
+                'points_possible': points_possible,
+                'submission_types': ['online_text_entry', 'online_upload'],
+                'grading_type': 'points',
+                'published': True,
+                'assignment_group_id': None,  # Will use default assignment group
+                'allowed_extensions': ['py', 'ipynb', 'txt', 'pdf', 'zip'],
+                'notify_of_update': False
+            }
+        }
+
+        result = make_api_request('POST', f'/courses/{COURSE_ID}/assignments', json=create_data)
         if result:
             print(f"✓ Successfully created assignment: {lab_name}")
             print(f"  URL: {BASE_URL}/courses/{COURSE_ID}/assignments/{result['id']}")

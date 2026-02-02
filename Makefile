@@ -1,4 +1,4 @@
-.PHONY: serve serve-full pdf delete-pages delete-modules delete-labs upload-pages upload-modules upload-labs clean
+.PHONY: serve serve-full pdf delete-pages delete-modules delete-labs upload-pages upload-pages-force upload-modules upload-labs clean
 
 # Serve the documentation locally (fast mode - better live reload)
 serve:
@@ -13,7 +13,8 @@ pdf:
 	mkdocs build --clean
 	mkdir -p pdf
 	find site -name "*.pdf" -exec cp {} pdf/ \;
-	@echo "✓ PDFs generated in /pdf directory"
+	python3 scripts/rename_pdfs_with_order.py
+	@echo "✓ PDFs generated and renamed in /pdf directory"
 
 # Delete all pages from Canvas
 delete-pages:
@@ -30,10 +31,15 @@ delete-labs:
 	@echo "⚠️  Deleting all lab assignments from Canvas..."
 	bash -c "source ./tokens.sh && echo 'yes' | python3 scripts/upload_labs_to_canvas.py --delete"
 
-# Upload all pages to Canvas (with align environment conversion)
+# Upload all pages to Canvas (incremental - only changed files)
 upload-pages:
-	@echo "📄 Uploading all pages to Canvas..."
+	@echo "📄 Uploading pages to Canvas (incremental - only changed files)..."
 	bash -c "source ./tokens.sh && python3 scripts/upload_all_pages_to_canvas.py"
+
+# Force upload all pages to Canvas (ignores cache)
+upload-pages-force:
+	@echo "📄 Force uploading all pages to Canvas (ignoring cache)..."
+	bash -c "source ./tokens.sh && python3 scripts/upload_all_pages_to_canvas.py --force"
 
 # Upload modules to Canvas (includes pages + PDFs) - requires PDFs to be built first
 upload-modules: pdf
