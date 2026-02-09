@@ -294,6 +294,9 @@ def markdown_to_html(markdown_path, docs_root, all_pages_info=None):
     with open(markdown_path, 'r', encoding='utf-8') as f:
         md_content = f.read()
 
+    # Strip leading H1 title; Canvas uses the page title separately
+    md_content = re.sub(r'^\s*#\s+.*\n', '', md_content, count=1)
+
     # Use shared processing pipeline with all pages info for internal link resolution
     html_content = process_markdown_to_html(
         md_content,
