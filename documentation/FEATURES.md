@@ -30,7 +30,7 @@ The scripts in this project automate the process of:
 #### Markdown to HTML Conversion
 - Comprehensive markdown processing pipeline with multiple extensions:
   - Tables, fenced code blocks (`extra`)
-  - Syntax highlighting with Pygments (`codehilite`)
+  - Syntax highlighting with Pygments (`codehilite`) (Issue: Code could be cleaner)
   - Table of contents (`toc`)
   - Note/warning blocks (`admonition`)
   - Definition lists, footnotes, metadata
