@@ -8,6 +8,7 @@ package-lock.json
 
 # Canvas API credentials and tokens
 tokens.sh
+.env
 
 # Canvas upload state cache
 .canvas_upload_state.json
@@ -22,6 +23,7 @@ env/
 venv/
 ENV/
 .venv
+.python-version
 
 # IDE
 .vscode/
