@@ -12,11 +12,37 @@ err_console = Console(stderr=True, style="bold red")
 
 
 @app.command()
+def upload_all(
+    force: Annotated[
+        bool, typer.Option(help="Force upload (ignores cache) for pages.")
+    ] = False,
+    add_pdf: Annotated[
+        bool, typer.Option(help="Add corresponding page pdf:s to the modules.")
+    ] = False,
+):
+    """
+    Uploads EVERYTHING: Pages, Modules, and Labs.
+    """
+    console.print("Starting full upload sequence...")
+
+    # 2. Call the other commands directly as normal functions
+    # We pass the arguments we received manually
+    upload_pages(force=force)
+    upload_modules(add_pdf=add_pdf)
+    upload_labs()
+
+    console.print("All uploads finished!")
+
+
+@app.command()
 def upload_pages(
     force: Annotated[bool, typer.Option(help="Force upload (ignores cache).")] = False,
 ):
+    """
+    Uploads pages.
+    """
     if force:
-        typer.echo("Forcing upload...")
+        typer.echo("Forcing upload. Ignoring cache.")
     upload_all_pages_to_canvas.process_all_pages()
 
 
@@ -26,13 +52,16 @@ def upload_modules(
         bool, typer.Option(help="Add corresponding page pdf:s to the modules.")
     ] = False,
 ):
+    """
+    Uploads modules.
+    """
     upload_modules_to_canvas.process_modules()
 
 
 @app.command()
 def upload_labs():
     """
-    Uploads labs. Labs are assignments whose name starts with "Lab".
+    Uploads labs.
     """
     upload_labs_to_canvas.upload_lab_assignments()
 
@@ -98,7 +127,7 @@ def delete_labs(
     ] = False,
 ):
     """
-    Deletes all labs. Labs are assignments whose name starts with "Lab".
+    Deletes all labs.
 
     Asks for confirmation unless --force is used
     """
