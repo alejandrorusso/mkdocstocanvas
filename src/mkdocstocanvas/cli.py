@@ -6,7 +6,13 @@ import upload_all_pages_to_canvas
 import upload_modules_to_canvas
 import upload_labs_to_canvas
 
-app = typer.Typer(help="Uploads mkdocs to canvas")
+from uploaders.pages import parse_upload_all_pages
+
+app = typer.Typer(
+    help="Uploads mkdocs to canvas",
+    pretty_exceptions_short=False,
+    pretty_exceptions_show_locals=True,
+)
 console = Console()
 err_console = Console(stderr=True, style="bold red")
 
@@ -43,7 +49,8 @@ def upload_pages(
     """
     if force:
         typer.echo("Forcing upload. Ignoring cache.")
-    upload_all_pages_to_canvas.process_all_pages()
+    # upload_all_pages_to_canvas.process_all_pages()
+    parse_upload_all_pages()
 
 
 @app.command()
