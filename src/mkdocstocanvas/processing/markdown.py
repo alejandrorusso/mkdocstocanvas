@@ -3,9 +3,9 @@ import markdown
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from models.page import MarkdownPage
-from processing.math import robust_math_protection, restore_protected_math_content
-from processing.excel import process_excel_macros
+from ..models.page import MarkdownPage
+from .math import robust_math_protection, restore_protected_math_content
+from .excel import process_excel_macros
 
 
 def process_markdown_to_html(md_page: MarkdownPage) -> str:

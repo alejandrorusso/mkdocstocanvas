@@ -10,10 +10,10 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-import utils.cache
-from api.canvas import CanvasUploader
-from models.page import MarkdownPage, compute_file_hash
-from processing.markdown import process_markdown_to_html
+from ..utils import cache as utils_cache
+from ..api.canvas import CanvasUploader
+from ..models.page import MarkdownPage, compute_file_hash
+from ..processing.markdown import process_markdown_to_html
 
 # Matches [text](path/to/page.md) and [text](path/to/page.md#anchor)
 _MD_LINK_PATTERN = re.compile(
@@ -48,7 +48,7 @@ class ContentUploader:
         self.client = client
         self.force = force
         self.cache_path = Path(cache)
-        raw = utils.cache.load_cache(self.cache_path)
+        raw = utils_cache.load_cache(self.cache_path)
         self.pages_cache: dict[str, dict] = raw.get("pages", {})
         self.files_cache: dict[str, dict] = raw.get("files", {})
 
@@ -58,7 +58,7 @@ class ContentUploader:
 
     def _save_cache(self) -> None:
         """Persist pages_cache and files_cache to disk."""
-        utils.cache.save_cache(
+        utils_cache.save_cache(
             self.cache_path,
             {"pages": self.pages_cache, "files": self.files_cache},
         )

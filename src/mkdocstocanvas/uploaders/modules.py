@@ -12,8 +12,8 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from api.canvas import CanvasUploader
-import utils.config
+from ..api.canvas import CanvasUploader
+from ..utils import config as utils_config
 
 console = Console()
 err_console = Console(stderr=True, style="bold red")
@@ -222,7 +222,7 @@ def upload_all_modules(
         err_console.print("ERROR: mkdocs.yml not found")
         raise typer.Exit(1)
 
-    sections = utils.config.parse_mkdocs_nav_sections(mkdocs_path_obj)
+    sections = utils_config.parse_mkdocs_nav_sections(mkdocs_path_obj)
     if not sections:
         err_console.print("No sections found in mkdocs.yml nav.")
         raise typer.Exit(1)

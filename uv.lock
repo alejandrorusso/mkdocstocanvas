@@ -108,17 +108,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.9.9"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "python-dotenv" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
-]
-
-[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -368,9 +357,8 @@ wheels = [
 [[package]]
 name = "mkdocstocanvas"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
-    { name = "dotenv" },
     { name = "markdown" },
     { name = "mkdocs-excel-plugin" },
     { name = "mkdocs-include-markdown-plugin" },
@@ -378,14 +366,15 @@ dependencies = [
     { name = "mkdocs-page-pdf" },
     { name = "openpyxl" },
     { name = "pymdown-extensions" },
+    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "rich" },
     { name = "typer" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "dotenv", specifier = ">=0.9.9" },
     { name = "markdown", specifier = ">=3.10.2" },
     { name = "mkdocs-excel-plugin", specifier = ">=1.0.0" },
     { name = "mkdocs-include-markdown-plugin", specifier = ">=7.2.1" },
@@ -393,8 +382,10 @@ requires-dist = [
     { name = "mkdocs-page-pdf", specifier = ">=0.4.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pymdown-extensions", specifier = ">=10.21" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.32.5" },
+    { name = "rich", specifier = ">=13.0.0" },
     { name = "typer", specifier = ">=0.23.2" },
 ]
 

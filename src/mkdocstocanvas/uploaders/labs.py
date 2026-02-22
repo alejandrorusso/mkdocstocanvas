@@ -12,9 +12,9 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from api.canvas import CanvasUploader
-from models.page import MarkdownPage
-from uploaders.base import ContentUploader
+from ..api.canvas import CanvasUploader
+from ..models.page import MarkdownPage
+from .base import ContentUploader
 
 console = Console()
 err_console = Console(stderr=True, style="bold red")

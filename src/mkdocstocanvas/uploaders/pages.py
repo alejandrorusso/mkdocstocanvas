@@ -11,10 +11,10 @@ from rich.progress import (
 )
 from rich.table import Table
 
-import utils.config
-from api.canvas import CanvasUploader
-from models.page import MarkdownPage
-from uploaders.base import ContentUploader, _MD_LINK_PATTERN
+from ..utils import config as utils_config
+from ..api.canvas import CanvasUploader
+from ..models.page import MarkdownPage
+from .base import ContentUploader, _MD_LINK_PATTERN
 
 console = Console()
 err_console = Console(stderr=True, style="bold red")
@@ -376,7 +376,7 @@ def parse_upload_all_pages(
     if not mkdocs_path.exists():
         err_console.print("ERROR: mkdocs.yml not found")
         raise typer.Exit(1)
-    markdown_files = utils.config.parse_mkdocs_nav(mkdocs_path)
+    markdown_files = utils_config.parse_mkdocs_nav(mkdocs_path)
     if markdown_files is None:
         err_console.print(f"No markdown files found in {mkdocs_path}")
         raise typer.Exit(1)

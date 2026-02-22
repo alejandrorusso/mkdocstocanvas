@@ -1,7 +1,7 @@
 # Canvas course publisher container
 # Provides an isolated environment for MkDocs + Canvas upload tooling
 
-FROM python:3.14-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -9,9 +9,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     UV_LINK_MODE=copy
 
 WORKDIR /app
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # System deps: fonts for PDF rendering and Playwright runtime dependencies
 RUN apt-get update && \
