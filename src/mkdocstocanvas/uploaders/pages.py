@@ -1,4 +1,4 @@
-from api import canvas_client
+from api.canvas import CanvasUploader
 import utils.cache
 import utils.config
 import canvas_processing
@@ -23,12 +23,10 @@ class MarkdownPage:
             self.title = None
             self.content = ""
             self.md5 = None
-            self.linked_files = {}
         else:
             self.title = self.get_title()
             self.content = self.get_content()
             self.md5 = compute_file_hash(self.path)
-            self.linked_files = self.get_linked_files()
 
     def get_title(self) -> str | None:
         """Extract the first # header from a markdown file as the title"""
@@ -49,56 +47,6 @@ class MarkdownPage:
 
         return None
 
-    def get_linked_files(self):
-        """
-        Return a mapping of local file links referenced by the markdown file to their hashes.
-        Considers ALL local files except markdown files.
-        """
-        # Simplest possible regex: Just grab whatever is inside the URL parentheses
-        file_pattern = re.compile(
-            r'\[([^\]]+)\]\(\s*([^\s\)]+)(?:\s+(?:"[^"]*"|\'[^\']*\'))?\s*\)',
-            re.IGNORECASE,
-        )
-
-        try:
-            content = Path(self.path).read_text(encoding="utf-8")
-        except Exception:
-            return {}
-
-        markdown_dir = Path(self.path).parent
-        docs_root_abs = self.root_path.resolve()
-        linked_files = {}
-
-        for match in file_pattern.finditer(content):
-            file_path = match.group(2)
-
-            # 1. Skip external web links, emails, and page anchor links
-            if file_path.startswith(("http://", "https://", "mailto:", "#")):
-                continue
-
-            # 2. Skip Markdown files (even if they have anchors like page.md#section)
-            if ".md" in file_path.lower():
-                continue
-
-            if file_path.startswith("./") or file_path.startswith("../"):
-                full_path = (markdown_dir / file_path).resolve()
-            else:
-                candidate = Path(file_path)
-                full_path = (
-                    candidate
-                    if candidate.is_absolute()
-                    else (docs_root_abs / candidate).resolve()
-                )
-            try:
-                rel_path = str(full_path.relative_to(docs_root_abs))
-            except Exception:
-                rel_path = str(full_path)
-            if full_path.exists():
-                linked_files[rel_path] = compute_file_hash(full_path)
-            else:
-                linked_files[rel_path] = None
-        return linked_files
-
     def get_content(self) -> str:
         with open(self.path, "r", encoding="utf-8") as f:
             md_content = f.read()
@@ -113,39 +61,47 @@ class MarkdownPage:
             f"Rel Path: {self.rel_path}\n"
             f"Title:    {self.title}\n"
             f"MD5:      {self.md5}\n"
-            f"Links:    {len(self.linked_files)} found\n"
             f"--------------------"
         )
 
 
 class PageUploader:
-    def __init__(self, cache=".canvas_upload_state.json"):
-        # Load cache
+    def __init__(
+        self,
+        client: CanvasUploader,
+        cache=".canvas_upload_state.json",
+        force: bool = False,
+    ):
+        self.client = client
+        self.force = force
         self.cache_path = Path(cache)
-        self.cache = utils.cache.load_cache(self.cache_path)
+        raw = utils.cache.load_cache(self.cache_path)
+        self.pages_cache: dict[str, dict] = raw.get("pages", {})
+        self.files_cache: dict[str, dict] = raw.get("files", {})
 
     def upload_all_pages(self, pages: list[MarkdownPage]) -> None:
         """
         Uploads all pages to canvas.
         """
         # Test connection
-        success, message = canvas_client.test_connection()
+        success, message = self.client.test_connection()
         if not success:
             err_console.print(message)
             raise typer.Exit(1)
         console.print(message)
 
+        # Get pages that needs to be uploaded
         pages_to_upload = self._pages_to_upload(pages)
 
         # Stage 1: Upload the pages
         failed = 0
         for page in pages_to_upload:
             try:
-                console.print(f"Uploading {page.path}")
                 canvas_url = self._upload_page(page)
                 page_url_slug = canvas_url.split("/pages/")[-1]
 
-                self.cache[str(page.rel_path)] = {
+                # Update the cache
+                self.pages_cache[str(page.rel_path)] = {
                     "page_title": page.title,
                     "hash": page.md5,
                     "canvas_url": canvas_url,
@@ -155,24 +111,27 @@ class PageUploader:
             except Exception as e:
                 failed += 1
                 err_console.print(f"Error uploading {page.path}: {e}")
-        utils.cache.save_cache(self.cache_path, self.cache)
+
+        utils.cache.save_cache(
+            self.cache_path, {"pages": self.pages_cache, "files": self.files_cache}
+        )
 
         # Stage 2: Resolve links
 
     def _upload_page(self, md_page: MarkdownPage) -> str:
         """
         Uploads page to canvas.
+
+        Returns the Canvas URL
         """
         md_page.content = self._process_markdown_assets(md_page)
 
         html_page = canvas_processing.process_markdown_to_html(md_page)
 
-        url_slug = (
-            info.get("page_url_slug")
-            if (info := self.cache.get(md_page.rel_path))
-            else None
-        )
-        return canvas_client.create_or_update_page(
+        info = self.pages_cache.get(str(md_page.rel_path))
+        url_slug = info.get("page_url_slug") if info else None
+
+        return self.client.create_or_update_page(
             md_page.title,  # pyright: ignore
             html_page,
             published=True,
@@ -194,7 +153,6 @@ class PageUploader:
 
         docs_root_abs = md_page.root_path.resolve()
         markdown_dir = Path(md_page.path).parent
-        linked_files = md_page.linked_files
 
         def replace_asset(match):
             is_image = match.group(1) == "!"
@@ -226,21 +184,25 @@ class PageUploader:
             # 4. Validation & Upload Logic
             if full_path.exists() and not full_path.is_dir():
                 rel_path = full_path.relative_to(docs_root_abs)
+                rel_path_str = str(rel_path)
 
-                # Images go to a specific folder, others preserve structure
-                # parent_folder = (
-                #     "/course_images" if is_image else f"/{rel_path.parent}".rstrip("/")
-                # )
                 parent_folder = f"/{rel_path.parent}".rstrip("/")
 
-                # Cache Check
-                info = self.cache.get(str(rel_path))
-                if info and info.get("hash") == linked_files.get(str(rel_path)):
+                # Compute hash now, at upload time
+                current_hash = compute_file_hash(full_path)
+
+                # Cache check: skip upload if hash matches
+                info = self.files_cache.get(rel_path_str)
+                if not self.force and info and info.get("hash") == current_hash:
                     canvas_url = info["canvas_url"]
                 else:
-                    # Actual Upload
-                    canvas_url = canvas_client.upload_file(full_path, parent_folder)
-                    # Note: You should update your cache here or in the caller loop
+                    canvas_url = self.client.upload_file(full_path, parent_folder)
+                    if canvas_url:
+                        self.files_cache[rel_path_str] = {
+                            "hash": current_hash,
+                            "canvas_url": canvas_url,
+                            "last_upload": datetime.now().isoformat(),
+                        }
 
                 # 5. Return formatted string based on type
                 if canvas_url:
@@ -250,12 +212,16 @@ class PageUploader:
 
             return match.group(0)
 
-        return re.sub(
+        result = re.sub(
             combined_pattern,
             replace_asset,
             md_page.content,  # pyright: ignore
             flags=re.IGNORECASE,
         )
+        utils.cache.save_cache(
+            self.cache_path, {"pages": self.pages_cache, "files": self.files_cache}
+        )
+        return result
 
     def _pages_to_upload(self, pages: list[MarkdownPage]) -> list[MarkdownPage]:
         """
@@ -291,13 +257,16 @@ class PageUploader:
         """
         Check if a file needs to be uploaded based on its hash and Canvas state.
         """
+        if self.force:
+            return True
+
         # Compute current hash
         if md_page.md5 is None:
             return True  # Failed to compute hash, force upload
 
         rel_path = str(md_page.path.relative_to(md_page.root_path))
         # Fetch metadata in one step
-        cached_info = self.cache.get(rel_path)
+        cached_info = self.pages_cache.get(rel_path)
         if cached_info is None:
             return True  # File not in metadata (new file)
 
@@ -310,13 +279,18 @@ class PageUploader:
             return True  # It has metadata, but no Canvas slug! Force upload.
 
         # Check Canvas page existence
-        if not canvas_client.get_existing_page(page_url_slug):
+        if not self.client.get_existing_page(page_url_slug):
             return True  # Page was deleted from Canvas, needs re-upload
 
         return False  # File unchanged and verified on Canvas
 
 
-def parse_upload_all_pages(docs_root="docs", mkdocs_path="mkdocs.yml"):
+def parse_upload_all_pages(
+    client: CanvasUploader,
+    docs_root="docs",
+    mkdocs_path="mkdocs.yml",
+    force: bool = False,
+):
     # docs/ directory
     docs_root = Path(docs_root)
     if not docs_root.exists():
@@ -335,7 +309,7 @@ def parse_upload_all_pages(docs_root="docs", mkdocs_path="mkdocs.yml"):
 
     markdown_pages = [MarkdownPage(docs_root / p) for p in markdown_files]
 
-    uploader = PageUploader()
+    uploader = PageUploader(client=client, force=force)
 
     uploader.upload_all_pages(markdown_pages)
 

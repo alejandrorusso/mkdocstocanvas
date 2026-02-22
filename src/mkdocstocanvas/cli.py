@@ -6,10 +6,11 @@ import upload_all_pages_to_canvas
 import upload_modules_to_canvas
 import upload_labs_to_canvas
 
+from api import create_client
+from api.canvas import CanvasUploader
 from uploaders.pages import parse_upload_all_pages
 
 app = typer.Typer(
-    help="Uploads mkdocs to canvas",
     pretty_exceptions_short=False,
     pretty_exceptions_show_locals=True,
 )
@@ -17,8 +18,16 @@ console = Console()
 err_console = Console(stderr=True, style="bold red")
 
 
+@app.callback()
+def main(ctx: typer.Context):
+    """Uploads a mkdocs project to canvas."""
+    ctx.ensure_object(dict)
+    ctx.obj["client"] = create_client()
+
+
 @app.command()
 def upload_all(
+    ctx: typer.Context,
     force: Annotated[
         bool, typer.Option(help="Force upload (ignores cache) for pages.")
     ] = False,
@@ -31,30 +40,30 @@ def upload_all(
     """
     console.print("Starting full upload sequence...")
 
-    # 2. Call the other commands directly as normal functions
-    # We pass the arguments we received manually
-    upload_pages(force=force)
-    upload_modules(add_pdf=add_pdf)
-    upload_labs()
+    upload_pages(ctx, force=force)
+    upload_modules(ctx, add_pdf=add_pdf)
+    upload_labs(ctx)
 
     console.print("All uploads finished!")
 
 
 @app.command()
 def upload_pages(
+    ctx: typer.Context,
     force: Annotated[bool, typer.Option(help="Force upload (ignores cache).")] = False,
 ):
     """
     Uploads pages.
     """
+    client: CanvasUploader = ctx.obj["client"]
     if force:
         typer.echo("Forcing upload. Ignoring cache.")
-    # upload_all_pages_to_canvas.process_all_pages()
-    parse_upload_all_pages()
+    parse_upload_all_pages(client, force=force)
 
 
 @app.command()
 def upload_modules(
+    ctx: typer.Context,
     add_pdf: Annotated[
         bool, typer.Option(help="Add corresponding page pdf:s to the modules.")
     ] = False,
@@ -66,7 +75,7 @@ def upload_modules(
 
 
 @app.command()
-def upload_labs():
+def upload_labs(ctx: typer.Context):
     """
     Uploads labs.
     """

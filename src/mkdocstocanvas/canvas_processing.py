@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple, Optional
 from pathlib import Path
 
 from yaml import Mark
-from api import canvas_client
+from api.canvas import CanvasUploader
 
 from uploaders.pages import MarkdownPage
 
@@ -547,6 +547,7 @@ def process_excel_macros(content: str, markdown_file_path: Path) -> str:
 def process_images(
     content: str,
     markdown_file_path: Path,
+    client: CanvasUploader,
 ) -> str:
     """Process and upload images referenced in markdown content."""
     markdown_dir = markdown_file_path.resolve().parent
@@ -575,7 +576,7 @@ def process_images(
 
         if full_image_path.exists():
             print(f"Uploading image: {full_image_path}")
-            canvas_url = canvas_client.upload_file(full_image_path, "/course_images")
+            canvas_url = client.upload_file(full_image_path, "/course_images")
             if canvas_url:
                 print(f"✓ Uploaded: {full_image_path.name}")
                 return f'<img src="{canvas_url}" alt="{alt_text}" />'
@@ -852,10 +853,10 @@ def process_markdown_to_html(
 
     # Step 2: Process images (upload to Canvas)
     # NOTE: Assuming md_page has canvas configuration attributes.
-    content = process_images(
-        content,
-        md_page.path,
-    )
+    # content = process_images(
+    #     content,
+    #     md_page.path,
+    # )
 
     # Step 3: Convert markdown to HTML (math is already protected)
     md = markdown.Markdown(

@@ -114,6 +114,8 @@ If `data.xlsx` exists in the folder, this will be replaced by an HTML table with
 ## 5. Media & Assets
 
 *Tests: `process_images` and `upload_image_to_canvas`*
+![Banananana](../some_images/banana.jpg)
+![Banananana](some_images/banana.jpg)
 
 The script should detect this image, upload it to the Canvas "Files" tab, and replace the path with the new Canvas URL.
 
@@ -123,6 +125,6 @@ The script should detect this image, upload it to the Canvas "Files" tab, and re
 
 *Tests: `resolve_internal_links`*
 
-* [Link to Differential Privacy Intro]() (Should resolve if page exists)
-* [Link to Sensitivity Section]() (Should handle anchors)
-* [External Google Link]() (Should stay untouched)
+* [Link to the other test file](./test2.md) (Should resolve if page exists)
+* [Link to some anchor](#robustness-test) (Should handle anchors)
+* [Link to a website](https://nohello.net/en/) (Should link to some external website)
