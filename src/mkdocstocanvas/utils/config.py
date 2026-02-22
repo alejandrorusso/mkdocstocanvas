@@ -43,3 +43,53 @@ def parse_mkdocs_nav(mkdocs_path: Path) -> list[str] | None:
     except Exception as e:
         err_console.print_exception(show_locals=True)
         raise typer.Exit(1)
+
+
+def parse_mkdocs_nav_sections(mkdocs_path: Path) -> list[dict] | None:
+    """
+    Parse mkdocs.yml and return top-level sections (modules) with their pages.
+
+    Returns:
+        [{"name": "Section Name", "pages": ["path/to/file.md", ...]}, ...]
+        or None if no sections are found.
+    """
+    def _collect_pages(items) -> list[str]:
+        """Recursively collect all .md file paths under a nav node."""
+        files: list[str] = []
+        if not isinstance(items, list):
+            items = [items]
+        for item in items:
+            if isinstance(item, str) and item.endswith(".md"):
+                files.append(item)
+            elif isinstance(item, dict):
+                for _, value in item.items():
+                    if isinstance(value, str) and value.endswith(".md"):
+                        files.append(value)
+                    elif isinstance(value, list):
+                        files.extend(_collect_pages(value))
+        return files
+
+    try:
+        with open(mkdocs_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        sections: list[dict] = []
+        for item in config.get("nav", []):
+            if isinstance(item, dict):
+                for section_name, section_content in item.items():
+                    pages = _collect_pages(
+                        section_content if isinstance(section_content, list) else [section_content]
+                    )
+                    if pages:
+                        sections.append({"name": section_name, "pages": pages})
+
+        return sections or None
+    except FileNotFoundError:
+        err_console.print(f"[bold red]Error:[/bold red] Could not find {mkdocs_path}")
+        raise typer.Exit(1)
+    except yaml.YAMLError as e:
+        err_console.print(f"[bold red]Error parsing YAML in {mkdocs_path}:[/bold red] {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        err_console.print_exception(show_locals=True)
+        raise typer.Exit(1)

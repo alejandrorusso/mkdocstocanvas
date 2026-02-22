@@ -135,13 +135,11 @@ class CanvasUploader:
 
         try:
             if existing_page:
-                print(f"  [~] Updating existing page: {title}")
                 url = (
                     f"{self.base_url}/api/v1/courses/{self.course_id}/pages/{page_slug}"
                 )
                 response = self.session.put(url, json=payload)
             else:
-                print(f"  [+] Creating new page: {title}")
                 url = f"{self.base_url}/api/v1/courses/{self.course_id}/pages"
                 response = self.session.post(url, json=payload)
 
@@ -222,3 +220,256 @@ class CanvasUploader:
         # For embedding in HTML, the preview/download URL is usually what you want.
         file_id = final_data.get("id")
         return f"{self.base_url}/courses/{self.course_id}/files/{file_id}/preview"
+
+    def list_pages(self) -> list[dict]:
+        """
+        Returns all wiki pages in the course (title + url slug).
+        Handles Canvas pagination automatically.
+        """
+        pages: list[dict] = []
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/pages"
+        params: dict = {"per_page": 100}
+
+        while url:
+            try:
+                response = self.session.get(url, params=params)
+                response.raise_for_status()
+                pages.extend(response.json())
+                # Follow Canvas Link header pagination
+                next_url = None
+                link_header = response.headers.get("Link", "")
+                for part in link_header.split(","):
+                    if 'rel="next"' in part:
+                        next_url = part.split(";")[0].strip().strip("<>")
+                        break
+                url = next_url
+                params = {}  # params are already baked into the next URL
+            except requests.exceptions.RequestException as e:
+                err_console.print(f"[bold red]Error listing pages:[/bold red] {e}")
+                break
+
+        return pages
+
+    def delete_page(self, page_slug: str) -> bool:
+        """
+        Deletes a single Canvas wiki page by its URL slug.
+        Returns True on success, False otherwise.
+        """
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/pages/{page_slug}"
+        try:
+            response = self.session.delete(url)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            err_console.print(
+                f"[bold red]Error deleting page '{page_slug}':[/bold red] {e}"
+            )
+            return False
+
+    # ------------------------------------------------------------------
+    # Module API
+    # ------------------------------------------------------------------
+
+    def list_modules(self) -> list[dict]:
+        """Returns all modules in the course (handles pagination)."""
+        modules: list[dict] = []
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules"
+        params: dict = {"per_page": 100}
+        while url:
+            try:
+                response = self.session.get(url, params=params)
+                response.raise_for_status()
+                modules.extend(response.json())
+                url = None
+                for part in response.headers.get("Link", "").split(","):
+                    if 'rel="next"' in part:
+                        url = part.split(";")[0].strip().strip("<>")
+                        break
+                params = {}
+            except requests.exceptions.RequestException as e:
+                err_console.print(f"[bold red]Error listing modules:[/bold red] {e}")
+                break
+        return modules
+
+    def create_module(self, name: str, position: int) -> dict | None:
+        """Creates a new unpublished module. Returns the module dict or None."""
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules"
+        payload = {"module": {"name": name, "position": position, "published": False}}
+        try:
+            response = self.session.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            err_console.print(f"[bold red]Error creating module '{name}':[/bold red] {e}")
+            return None
+
+    def delete_module(self, module_id: int) -> bool:
+        """Deletes a module by ID."""
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}"
+        try:
+            response = self.session.delete(url)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            err_console.print(f"[bold red]Error deleting module {module_id}:[/bold red] {e}")
+            return False
+
+    def add_page_to_module(
+        self, module_id: int, page_url: str, title: str, position: int
+    ) -> dict | None:
+        """Adds a wiki page item to a module."""
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}/items"
+        payload = {
+            "module_item": {
+                "title": title,
+                "type": "Page",
+                "page_url": page_url,
+                "position": position,
+                "indent": 0,
+            }
+        }
+        try:
+            response = self.session.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            err_console.print(
+                f"[bold red]Error adding page '{title}' to module:[/bold red] {e}"
+            )
+            return None
+
+    def add_file_to_module(
+        self, module_id: int, file_id: int, title: str, position: int
+    ) -> dict | None:
+        """Adds an uploaded file item to a module."""
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}/items"
+        payload = {
+            "module_item": {
+                "title": title,
+                "type": "File",
+                "content_id": file_id,
+                "position": position,
+                "indent": 0,
+            }
+        }
+        try:
+            response = self.session.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            err_console.print(
+                f"[bold red]Error adding file '{title}' to module:[/bold red] {e}"
+            )
+            return None
+
+    def publish_module(self, module_id: int) -> bool:
+        """Publishes a module and all its items."""
+        base = f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}"
+        try:
+            items = self.session.get(f"{base}/items", params={"per_page": 100})
+            items.raise_for_status()
+            for item in items.json():
+                self.session.put(
+                    f"{base}/items/{item['id']}",
+                    json={"module_item": {"published": True}},
+                )
+            resp = self.session.put(base, json={"module": {"published": True}})
+            resp.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            err_console.print(f"[bold red]Error publishing module {module_id}:[/bold red] {e}")
+            return False
+
+    # ------------------------------------------------------------------
+    # Assignment API
+    # ------------------------------------------------------------------
+
+    def list_assignments(self) -> list[dict]:
+        """Returns all assignments in the course (handles pagination)."""
+        assignments: list[dict] = []
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}/assignments"
+        params: dict = {"per_page": 100}
+        while url:
+            try:
+                response = self.session.get(url, params=params)
+                response.raise_for_status()
+                assignments.extend(response.json())
+                url = None
+                for part in response.headers.get("Link", "").split(","):
+                    if 'rel="next"' in part:
+                        url = part.split(";")[0].strip().strip("<>")
+                        break
+                params = {}
+            except requests.exceptions.RequestException as e:
+                err_console.print(f"[bold red]Error listing assignments:[/bold red] {e}")
+                break
+        return assignments
+
+    def create_or_update_assignment(
+        self,
+        name: str,
+        html_content: str,
+        points_possible: int = 100,
+    ) -> dict | None:
+        """
+        Creates a new assignment or updates the description of an existing one.
+        Preserves deadlines, points, and other settings on update.
+        Returns the assignment dict or None on failure.
+        """
+        # Look for an existing assignment with this name
+        existing = next(
+            (a for a in self.list_assignments() if a.get("name") == name), None
+        )
+
+        try:
+            if existing:
+                url = (
+                    f"{self.base_url}/api/v1/courses/{self.course_id}"
+                    f"/assignments/{existing['id']}"
+                )
+                payload = {
+                    "assignment": {
+                        "description": html_content,
+                        "notify_of_update": False,
+                    }
+                }
+                response = self.session.put(url, json=payload)
+            else:
+                url = f"{self.base_url}/api/v1/courses/{self.course_id}/assignments"
+                payload = {
+                    "assignment": {
+                        "name": name,
+                        "description": html_content,
+                        "points_possible": points_possible,
+                        "submission_types": ["online_text_entry", "online_upload"],
+                        "grading_type": "points",
+                        "published": True,
+                        "allowed_extensions": ["py", "ipynb", "txt", "pdf", "zip"],
+                        "notify_of_update": False,
+                    }
+                }
+                response = self.session.post(url, json=payload)
+
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            err_console.print(
+                f"[bold red]Error creating/updating assignment '{name}':[/bold red] {e}"
+            )
+            return None
+
+    def delete_assignment(self, assignment_id: int) -> bool:
+        """Deletes an assignment by ID."""
+        url = (
+            f"{self.base_url}/api/v1/courses/{self.course_id}"
+            f"/assignments/{assignment_id}"
+        )
+        try:
+            response = self.session.delete(url)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            err_console.print(
+                f"[bold red]Error deleting assignment {assignment_id}:[/bold red] {e}"
+            )
+            return False

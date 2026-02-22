@@ -2,20 +2,18 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-import upload_all_pages_to_canvas
-import upload_modules_to_canvas
-import upload_labs_to_canvas
-
 from api import create_client
 from api.canvas import CanvasUploader
-from uploaders.pages import parse_upload_all_pages
+from uploaders.pages import parse_upload_all_pages, delete_all_pages
+from uploaders.modules import upload_all_modules, delete_all_modules
+from uploaders.labs import upload_all_labs, delete_all_labs
 
 app = typer.Typer(
     pretty_exceptions_short=False,
     pretty_exceptions_show_locals=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
-err_console = Console(stderr=True, style="bold red")
 
 
 @app.callback()
@@ -34,15 +32,20 @@ def upload_all(
     add_pdf: Annotated[
         bool, typer.Option(help="Add corresponding page pdf:s to the modules.")
     ] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose output.")
+    ] = False,
 ):
     """
     Uploads EVERYTHING: Pages, Modules, and Labs.
     """
+    if verbose:
+        console.print("[bold]Verbose mode enabled.[/bold]")
     console.print("Starting full upload sequence...")
 
-    upload_pages(ctx, force=force)
-    upload_modules(ctx, add_pdf=add_pdf)
-    upload_labs(ctx)
+    upload_pages(ctx, force=force, verbose=verbose)
+    upload_modules(ctx, add_pdf=add_pdf, verbose=verbose)
+    upload_labs(ctx, verbose=verbose)
 
     console.print("All uploads finished!")
 
@@ -51,6 +54,9 @@ def upload_all(
 def upload_pages(
     ctx: typer.Context,
     force: Annotated[bool, typer.Option(help="Force upload (ignores cache).")] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose output.")
+    ] = False,
 ):
     """
     Uploads pages.
@@ -58,7 +64,7 @@ def upload_pages(
     client: CanvasUploader = ctx.obj["client"]
     if force:
         typer.echo("Forcing upload. Ignoring cache.")
-    parse_upload_all_pages(client, force=force)
+    parse_upload_all_pages(client, force=force, verbose=verbose)
 
 
 @app.command()
@@ -67,105 +73,80 @@ def upload_modules(
     add_pdf: Annotated[
         bool, typer.Option(help="Add corresponding page pdf:s to the modules.")
     ] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose output.")
+    ] = False,
 ):
     """
     Uploads modules.
     """
-    upload_modules_to_canvas.process_modules()
+    upload_all_modules(ctx.obj["client"], verbose=verbose)
 
 
 @app.command()
-def upload_labs(ctx: typer.Context):
+def upload_labs(
+    ctx: typer.Context,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Re-upload even if assets are cached.")
+    ] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose output.")
+    ] = False,
+):
     """
-    Uploads labs.
+    Uploads labs as Canvas assignments.
     """
-    upload_labs_to_canvas.upload_lab_assignments()
+    upload_all_labs(ctx.obj["client"], force=force, verbose=verbose)
+
+
+@app.command()
+def delete_all(
+    ctx: typer.Context,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Skip all confirmation prompts.")
+    ] = False,
+):
+    """
+    Deletes EVERYTHING: Pages, Modules, and Labs.
+    """
+    console.print("Deleting all content...")
+    delete_pages(ctx, force=force)
+    delete_modules(ctx, force=force)
+    delete_labs(ctx, force=force)
+    console.print("All content deleted!")
 
 
 @app.command()
 def delete_pages(
+    ctx: typer.Context,
     force: Annotated[
-        bool,
-        typer.Option(
-            prompt="Are you sure you want to delete ALL pages?",
-            help="Force deletion without confirmation.",
-        ),
-    ],
+        bool, typer.Option("--force", "-f", help="Skip confirmation prompt.")
+    ] = False,
 ):
-    """
-    Deletes all pages.
-
-    Asks for confirmation unless --force is used
-    """
-    if force:
-        success = upload_all_pages_to_canvas.delete_all_pages()
-        if success:
-            console.print("✓ All pages deleted successfully!", style="bold green")
-            raise typer.Exit()
-        else:
-            err_console.print("✗ Page deletion failed")
-            raise typer.Exit(code=1)
-    else:
-        raise typer.Abort()
+    """Deletes ALL pages from the Canvas course."""
+    delete_all_pages(ctx.obj["client"], force=force)
 
 
 @app.command()
 def delete_modules(
+    ctx: typer.Context,
     force: Annotated[
-        bool,
-        typer.Option(
-            prompt="Are you sure you want to delete ALL modules?",
-            help="Force deletion without confirmation.",
-        ),
-    ],
+        bool, typer.Option("--force", "-f", help="Skip confirmation prompt.")
+    ] = False,
 ):
-    """
-    Deletes all modules.
-
-    Asks for confirmation unless --force is used
-    """
-    if force:
-        success = upload_modules_to_canvas.delete_all_modules()
-        if success:
-            console.print("✓ All modules deleted successfully!", style="bold green")
-            raise typer.Exit()
-        else:
-            err_console.print("✗ Module deletion failed")
-            raise typer.Exit(code=1)
-    else:
-        raise typer.Abort()
+    """Deletes all modules."""
+    delete_all_modules(ctx.obj["client"], force=force)
 
 
 @app.command()
 def delete_labs(
+    ctx: typer.Context,
     force: Annotated[
-        bool, typer.Option(help="Force deletion without confirmation.")
+        bool, typer.Option("--force", "-f", help="Skip confirmation prompt.")
     ] = False,
 ):
-    """
-    Deletes all labs.
-
-    Asks for confirmation unless --force is used
-    """
-    assignments = upload_labs_to_canvas.get_all_assignments()
-    if assignments:
-        lab_assignments = upload_labs_to_canvas.filter_lab_assignments(assignments)
-
-    if not lab_assignments:
-        console.print("No lab assignments found to delete")
-        return True
-
-    console.print(f"Found {len(lab_assignments)} lab assignment(s) to delete:")
-    for assignment in lab_assignments:
-        console.print(f"  - {assignment['name']} (ID: {assignment['id']})")
-
-    if not force:
-        typer.confirm(
-            f"Are you sure you want to delete {len(lab_assignments)} lab assignment(s)?",
-            abort=True,
-        )
-
-    upload_labs_to_canvas.delete_lab_assignments()
+    """Deletes all lab assignments."""
+    delete_all_labs(ctx.obj["client"], force=force)
 
 
 if __name__ == "__main__":
