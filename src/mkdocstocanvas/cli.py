@@ -27,7 +27,8 @@ def main(ctx: typer.Context):
 def upload_all(
     ctx: typer.Context,
     force: Annotated[
-        bool, typer.Option(help="Force upload (ignores cache) for pages.")
+        bool,
+        typer.Option("--force", "-f", help="Force upload (ignores cache) for pages."),
     ] = False,
     add_pdf: Annotated[
         bool, typer.Option(help="Add corresponding page pdf:s to the modules.")
@@ -43,9 +44,9 @@ def upload_all(
         console.print("[bold]Verbose mode enabled.[/bold]")
     console.print("Starting full upload sequence...")
 
+    upload_labs(ctx, verbose=verbose)
     upload_pages(ctx, force=force, verbose=verbose)
     upload_modules(ctx, add_pdf=add_pdf, verbose=verbose)
-    upload_labs(ctx, verbose=verbose)
 
     console.print("All uploads finished!")
 
@@ -53,7 +54,9 @@ def upload_all(
 @app.command()
 def upload_pages(
     ctx: typer.Context,
-    force: Annotated[bool, typer.Option(help="Force upload (ignores cache).")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Force upload (ignores cache).")
+    ] = False,
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose output.")
     ] = False,
