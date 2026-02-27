@@ -381,6 +381,53 @@ class CanvasUploader:
             return False
 
     # ------------------------------------------------------------------
+    # Syllabus API
+    # ------------------------------------------------------------------
+
+    def get_syllabus(self) -> str | None:
+        """
+        Fetches the current syllabus body for the course.
+
+        Returns:
+            The HTML syllabus body string, or None on failure.
+        """
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}"
+        try:
+            response = self.session.get(url, params={"include[]": "syllabus_body"})
+            response.raise_for_status()
+            return response.json().get("syllabus_body")
+        except requests.exceptions.RequestException as e:
+            err_console.print(f"[bold red]Error fetching syllabus:[/bold red] {e}")
+            return None
+
+    def upload_syllabus(self, html_content: str) -> str | None:
+        """
+        Uploads or replaces the course syllabus body.
+
+        Args:
+            html_content: HTML content to set as the syllabus body.
+
+        Returns:
+            The Canvas URL of the syllabus page on success, or None on failure.
+        """
+        url = f"{self.base_url}/api/v1/courses/{self.course_id}"
+        payload = {"course": {"syllabus_body": html_content}}
+        try:
+            response = self.session.put(url, json=payload)
+            response.raise_for_status()
+            return f"{self.base_url}/courses/{self.course_id}/assignments/syllabus"
+        except requests.exceptions.HTTPError as e:
+            err_console.print(
+                f"[bold red]Error uploading syllabus:[/bold red] {e.response.text}"
+            )
+            return None
+        except requests.exceptions.RequestException as e:
+            err_console.print(
+                f"[bold red]Network error uploading syllabus:[/bold red] {str(e)}"
+            )
+            return None
+
+    # ------------------------------------------------------------------
     # Assignment API
     # ------------------------------------------------------------------
 

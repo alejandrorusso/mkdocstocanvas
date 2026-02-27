@@ -290,6 +290,9 @@ class PageUploader(ContentUploader):
         info = self.pages_cache.get(str(md_page.rel_path))
         url_slug = info.get("page_url_slug") if info else None
 
+        if md_page.path.name == "syllabus.md":
+            return self.client.upload_syllabus(html_page)  # pyright: ignore
+
         return self.client.create_or_update_page(
             md_page.title,  # pyright: ignore
             html_page,
@@ -368,20 +371,28 @@ def parse_upload_all_pages(
     # docs/ directory
     docs_root = Path(docs_root)
     if not docs_root.exists():
-        err_console.print("ERROR: docs/ directory not found")
+        err_console.print(
+            "ERROR: docs/ directory not found. Make sure that your directory contains docs/"
+        )
         raise typer.Exit(1)
 
     # Parse mkdocs.yml
     mkdocs_path = Path(mkdocs_path)
     if not mkdocs_path.exists():
-        err_console.print("ERROR: mkdocs.yml not found")
+        err_console.print(
+            "ERROR: mkdocs.yml not found. Make sure that your directory contains mkdocs.yml"
+        )
         raise typer.Exit(1)
     markdown_files = utils_config.parse_mkdocs_nav(mkdocs_path)
     if markdown_files is None:
         err_console.print(f"No markdown files found in {mkdocs_path}")
         raise typer.Exit(1)
 
-    markdown_pages = [MarkdownPage(docs_root / p) for p in markdown_files]
+    _NO_TITLE_REQUIRED = {"syllabus.md"}
+    markdown_pages = [
+        MarkdownPage(docs_root / p, require_title=p not in _NO_TITLE_REQUIRED)
+        for p in markdown_files
+    ]
 
     uploader = PageUploader(client=client, force=force, verbose=verbose)
 

@@ -47,13 +47,14 @@ class LabUploader(ContentUploader):
         ) as progress:
             task = progress.add_task("[cyan]Uploading labs...", total=len(lab_files))
             for lab_file in lab_files:
-                name = self._lab_name(lab_file)
+                page = MarkdownPage(lab_file, root_path=lab_file.parent.parent)
+                name = page.title or lab_file.stem
                 progress.update(
                     task,
                     description=f"[cyan]Uploading [bold]{name}[/bold]...",
                 )
                 try:
-                    html = self._render(lab_file)
+                    html = self._prepare_content(page)
                     result = self.client.create_or_update_assignment(name, html)
                     if result:
                         url = (
@@ -62,7 +63,7 @@ class LabUploader(ContentUploader):
                         )
                         # Store in pages_cache so other pages/labs can resolve
                         # links that point to this lab's .md file.
-                        rel = str(MarkdownPage(lab_file, root_path=lab_file.parent.parent).rel_path)
+                        rel = str(page.rel_path)
                         self.pages_cache[rel] = {"canvas_url": url}
                         results.append({"name": name, "url": url, "status": "ok"})
                         if self.verbose:
@@ -81,16 +82,6 @@ class LabUploader(ContentUploader):
 
         self._save_cache()
         self._print_summary(results)
-
-    def _render(self, path: Path) -> str:
-        """Convert a lab markdown file to Canvas-ready HTML (with asset and link resolution)."""
-        page = MarkdownPage(path, root_path=path.parent.parent)
-        return self._prepare_content(page)
-
-    def _lab_name(self, path: Path) -> str:
-        """Derive assignment name from filename, e.g. lab1.md -> 'Lab 1'."""
-        match = re.search(r"lab\s*(\d+)", path.stem, re.IGNORECASE)
-        return f"Lab {match.group(1)}" if match else path.stem
 
     def _print_summary(self, results: list[dict]) -> None:
         ok = sum(1 for r in results if r["status"] == "ok")
@@ -118,13 +109,20 @@ class LabUploader(ContentUploader):
 
 
 def find_lab_files(docs_root: Path = Path("docs")) -> list[Path]:
-    """Find and sort all lab*.md files under docs_root/labs/."""
+    """Find and sort all lab*.md files specifically under docs_root/labs/."""
+    labs_dir = docs_root / "labs"
+
+    # Ensure the directory exists to avoid errors
+    if not labs_dir.is_dir():
+        return []
 
     def _sort_key(p: Path) -> int:
+        # Matches 'lab' followed by optional space and digits
         m = re.search(r"lab\s*(\d+)", p.stem, re.IGNORECASE)
         return int(m.group(1)) if m else 0
 
-    return sorted(docs_root.rglob("lab*.md"), key=_sort_key)
+    # Using glob instead of rglob to stay within the /labs/ folder
+    return sorted(labs_dir.glob("lab*.md"), key=_sort_key)
 
 
 def upload_all_labs(
