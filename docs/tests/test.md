@@ -115,7 +115,6 @@ If `data.xlsx` exists in the folder, this will be replaced by an HTML table with
 
 *Tests: `process_images` and `upload_image_to_canvas`*
 ![Banananana](../some_images/banana.jpg)
-![Banananana](some_images/banana.jpg)
 
 The script should detect this image, upload it to the Canvas "Files" tab, and replace the path with the new Canvas URL.
 
@@ -127,4 +126,7 @@ The script should detect this image, upload it to the Canvas "Files" tab, and re
 
 * [Link to the other test file](./test2.md) (Should resolve if page exists)
 * [Link to some anchor](#robustness-test) (Should handle anchors)
+* [Link to some anchor](./test2.md#some-anchor-here) (Should handle anchors in a different page)
+* [Link to syllabus](../syllabus.md) (Should correctly link to syllabus)
+* [Link to lab](../labs/lab1.md) (Should correctly link to lab)
 * [Link to a website](https://nohello.net/en/) (Should link to some external website)
