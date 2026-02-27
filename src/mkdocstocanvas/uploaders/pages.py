@@ -355,7 +355,11 @@ class PageUploader(ContentUploader):
             return True  # It has metadata, but no Canvas slug! Force upload.
 
         # Check Canvas page existence
-        if not self.client.get_existing_page(page_url_slug):
+        if (
+            not self.client.get_existing_page(page_url_slug)
+            # If syllabus, ignore existence check
+            and md_page.path.name != "syllabus.md"
+        ):
             return True  # Page was deleted from Canvas, needs re-upload
 
         return False  # File unchanged and verified on Canvas
