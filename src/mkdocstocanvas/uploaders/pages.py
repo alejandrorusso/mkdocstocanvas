@@ -51,6 +51,7 @@ class PageUploader(ContentUploader):
         skipped = len(pages) - len(pages_to_upload)
 
         if self.verbose:
+            console.print(f"[dim]{pages}")
             console.print(
                 f"[dim]Found {len(pages)} total page(s). "
                 f"{len(pages_to_upload)} to upload, {skipped} skipped (cached/unchanged).[/dim]"
@@ -290,7 +291,7 @@ class PageUploader(ContentUploader):
         info = self.pages_cache.get(str(md_page.rel_path))
         url_slug = info.get("page_url_slug") if info else None
 
-        if md_page.path.name == "syllabus.md":
+        if md_page.title.lower() == "syllabus":
             return self.client.upload_syllabus(html_page)  # pyright: ignore
 
         return self.client.create_or_update_page(
@@ -358,7 +359,7 @@ class PageUploader(ContentUploader):
         if (
             not self.client.get_existing_page(page_url_slug)
             # If syllabus, ignore existence check
-            and md_page.path.name != "syllabus.md"
+            and md_page.title.lower() != "syllabus"
         ):
             return True  # Page was deleted from Canvas, needs re-upload
 
@@ -392,11 +393,7 @@ def parse_upload_all_pages(
         err_console.print(f"No markdown files found in {mkdocs_path}")
         raise typer.Exit(1)
 
-    _NO_TITLE_REQUIRED = {"syllabus.md"}
-    markdown_pages = [
-        MarkdownPage(docs_root / p, require_title=p not in _NO_TITLE_REQUIRED)
-        for p in markdown_files
-    ]
+    markdown_pages = [MarkdownPage(docs_root / p) for p in markdown_files]
 
     uploader = PageUploader(client=client, force=force, verbose=verbose)
 

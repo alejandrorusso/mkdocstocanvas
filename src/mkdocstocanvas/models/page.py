@@ -8,7 +8,7 @@ err_console = Console(stderr=True, style="bold red")
 
 
 class MarkdownPage:
-    def __init__(self, path: Path, root_path: Path = Path("docs"), require_title: bool = True):
+    def __init__(self, path: Path, root_path: Path = Path("docs")):
         # Path that also contains the root path.
         # Ex: docs/lectures/lecture1.md
         self.path = path
@@ -16,16 +16,11 @@ class MarkdownPage:
         self.root_path = root_path
         # Ex: lectures/lecture1.md
         self.rel_path = self.path.relative_to(root_path)
-        if not self.path.exists():
-            self.title = None
-            self.content = ""
-            self.md5 = None
-        else:
-            self.title = self.get_title(require_title=require_title)
-            self.content = self.get_content()
-            self.md5 = compute_file_hash(self.path)
+        self.title = self.get_title()
+        self.content = self.get_content()
+        self.md5 = compute_file_hash(self.path)
 
-    def get_title(self, require_title: bool = True) -> str:
+    def get_title(self) -> str:
         """Extract the first # header from a markdown file as the title"""
         try:
             with open(self.path, "r", encoding="utf-8") as f:
@@ -40,15 +35,17 @@ class MarkdownPage:
         except UnicodeDecodeError as e:
             err_console.print(f"⚠ Encoding error in {self.path}: {e}")
 
-        if require_title:
-            err_console.print(
-                f"Couldn't find title in {self.path}. Make sure that the file contains a level 1 heading."
-            )
+        err_console.print(
+            f"Couldn't find title in {self.path}. Make sure that the file contains a level 1 heading."
+        )
         return self.path.stem
 
     def get_content(self) -> str:
-        with open(self.path, "r", encoding="utf-8") as f:
-            md_content = f.read()
+        try:
+            with open(self.path, "r", encoding="utf-8") as f:
+                md_content = f.read()
+        except FileNotFoundError:
+            return ""
 
         # Strip leading H1 title; Canvas uses the page title separately
         return re.sub(r"^\s*#\s+.*\n", "", md_content, count=1)
