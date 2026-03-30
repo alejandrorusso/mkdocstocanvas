@@ -41,4 +41,4 @@ By the end of this course, you will be able to:
 
 ## Getting Started
 
-Begin with [Lecture 1 - Introduction](lectures/01-introduction.md) to learn the basics of machine learning.
+Begin with [Lecture 1 - Introduction](../lectures/01-introduction.md) to learn the basics of machine learning.

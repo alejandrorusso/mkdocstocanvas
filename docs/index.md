@@ -1,4 +1,4 @@
-# Introduction to Machine Learning
+# Syllabus
 
 Welcome to **Introduction to Machine Learning**! This course provides a comprehensive introduction to the fundamentals of machine learning, covering both theory and practical implementation.
 

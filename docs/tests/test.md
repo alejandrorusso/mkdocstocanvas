@@ -105,16 +105,16 @@ This is a danger block. It should be red.
 
 *Tests: `process_excel_macros` and `render_excel_sheet_to_html`*
 
-If `data.xlsx` exists in the folder, this will be replaced by an HTML table with preserved cell colors.
+If `data.xlsx` exists, this will be replaced by an HTML table with preserved cell colors.
 
-{{ render_excel_sheet('data.xlsx', 'Sheet1') }}
+{{ render_excel_sheet('./data.xlsx', 'Sheet1') }}
 
 ---
 
 ## 5. Media & Assets
 
 *Tests: `process_images` and `upload_image_to_canvas`*
-![Banananana](../some_images/banana.jpg)
+![Banananana](./banana.jpg)
 
 The script should detect this image, upload it to the Canvas "Files" tab, and replace the path with the new Canvas URL.
 
@@ -127,6 +127,6 @@ The script should detect this image, upload it to the Canvas "Files" tab, and re
 * [Link to the other test file](./test2.md) (Should resolve if page exists)
 * [Link to some anchor](#robustness-test) (Should handle anchors)
 * [Link to some anchor](./test2.md#some-anchor-here) (Should handle anchors in a different page)
-* [Link to syllabus](../syllabus.md) (Should correctly link to syllabus)
+* [Link to syllabus](../index.md) (Should correctly link to syllabus)
 * [Link to lab](../labs/lab1.md) (Should correctly link to lab)
 * [Link to a website](https://nohello.net/en/) (Should link to some external website)
