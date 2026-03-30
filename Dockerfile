@@ -42,7 +42,7 @@ COPY src/ ./src/
 RUN uv sync --frozen --no-dev
 
 # Mount your project directory at runtime:
-#   docker run --rm -v $(pwd):/workspace -w /workspace --env-file .env <image> mkdocstocanvas upload-all
+#   docker run --rm -it -p 8000:8000 -v $(pwd):/workspace -w /workspace --env-file .env <image>
 WORKDIR /workspace
 
 CMD ["/bin/bash"]
