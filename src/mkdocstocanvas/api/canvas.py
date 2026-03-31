@@ -300,7 +300,9 @@ class CanvasUploader:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            err_console.print(f"[bold red]Error creating module '{name}':[/bold red] {e}")
+            err_console.print(
+                f"[bold red]Error creating module '{name}':[/bold red] {e}"
+            )
             return None
 
     def delete_module(self, module_id: int) -> bool:
@@ -311,14 +313,18 @@ class CanvasUploader:
             response.raise_for_status()
             return True
         except requests.exceptions.RequestException as e:
-            err_console.print(f"[bold red]Error deleting module {module_id}:[/bold red] {e}")
+            err_console.print(
+                f"[bold red]Error deleting module {module_id}:[/bold red] {e}"
+            )
             return False
 
     def add_page_to_module(
         self, module_id: int, page_url: str, title: str, position: int
     ) -> dict | None:
         """Adds a wiki page item to a module."""
-        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}/items"
+        url = (
+            f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}/items"
+        )
         payload = {
             "module_item": {
                 "title": title,
@@ -342,7 +348,9 @@ class CanvasUploader:
         self, module_id: int, file_id: int, title: str, position: int
     ) -> dict | None:
         """Adds an uploaded file item to a module."""
-        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}/items"
+        url = (
+            f"{self.base_url}/api/v1/courses/{self.course_id}/modules/{module_id}/items"
+        )
         payload = {
             "module_item": {
                 "title": title,
@@ -377,7 +385,9 @@ class CanvasUploader:
             resp.raise_for_status()
             return True
         except requests.exceptions.RequestException as e:
-            err_console.print(f"[bold red]Error publishing module {module_id}:[/bold red] {e}")
+            err_console.print(
+                f"[bold red]Error publishing module {module_id}:[/bold red] {e}"
+            )
             return False
 
     # ------------------------------------------------------------------
@@ -448,7 +458,9 @@ class CanvasUploader:
                         break
                 params = {}
             except requests.exceptions.RequestException as e:
-                err_console.print(f"[bold red]Error listing assignments:[/bold red] {e}")
+                err_console.print(
+                    f"[bold red]Error listing assignments:[/bold red] {e}"
+                )
                 break
         return assignments
 

@@ -24,11 +24,16 @@ class ModuleUploader:
         self,
         client: CanvasUploader,
         docs_root: Path = Path("docs"),
+        pdf_root: Path = Path("pdf"),
+        add_pdf: bool = False,
         verbose: bool = False,
     ):
         self.client = client
         self.docs_root = docs_root
+        self.pdf_root = pdf_root
+        self.add_pdf = add_pdf
         self.verbose = verbose
+        self.pdf_by_stem = self._index_pdfs() if add_pdf else {}
 
     def upload_all(self, sections: list[dict]) -> None:
         """
@@ -49,6 +54,10 @@ class ModuleUploader:
         pages_by_title = {p["title"]: p for p in canvas_pages}
         if self.verbose:
             console.print(f"[dim]Found {len(canvas_pages)} Canvas page(s).[/dim]")
+            if self.add_pdf:
+                console.print(
+                    f"[dim]Found {len(self.pdf_by_stem)} PDF file(s) in {self.pdf_root}/.[/dim]"
+                )
 
         # Delete existing modules
         existing = self.client.list_modules()
@@ -124,7 +133,8 @@ class ModuleUploader:
     ) -> int:
         """Add matching Canvas pages to a module. Returns count of pages added."""
         added = 0
-        for i, md_path in enumerate(pages, 1):
+        position = 1
+        for md_path in pages:
             if md_path.startswith("labs/"):
                 continue
 
@@ -153,7 +163,7 @@ class ModuleUploader:
                 continue
 
             result = self.client.add_page_to_module(
-                module_id, canvas_page["url"], canvas_page["title"], i
+                module_id, canvas_page["url"], canvas_page["title"], position
             )
             if result:
                 added += 1
@@ -161,8 +171,76 @@ class ModuleUploader:
                     console.print(
                         f"    [green]✓[/green] Added: {canvas_page['title']}"
                     )
+                if self.add_pdf:
+                    self._add_matching_pdf_to_module(
+                        module_id=module_id,
+                        md_path=md_path,
+                        position=position + 1,
+                    )
+                position += 2 if self.add_pdf else 1
 
         return added
+
+    def _index_pdfs(self) -> dict[str, Path]:
+        """Index PDFs in pdf_root by normalized stem for quick lookup."""
+        if not self.pdf_root.exists():
+            if self.verbose:
+                console.print(
+                    f"[yellow]⚠[/yellow] PDF directory not found: {self.pdf_root}"
+                )
+            return {}
+
+        pdf_by_stem: dict[str, Path] = {}
+        for pdf_path in self.pdf_root.glob("*.pdf"):
+            pdf_by_stem[self._normalize_stem(pdf_path.stem)] = pdf_path
+        return pdf_by_stem
+
+    def _normalize_stem(self, stem: str) -> str:
+        """Normalize file stems for matching (strip optional letter prefix)."""
+        return re.sub(r"^[A-Z]\.\s+", "", stem).strip().lower()
+
+    def _extract_file_id(self, canvas_file_url: str) -> int | None:
+        """Extract Canvas file ID from a /files/{id}/ URL."""
+        match = re.search(r"/files/(\d+)/", canvas_file_url)
+        return int(match.group(1)) if match else None
+
+    def _add_matching_pdf_to_module(self, module_id: int, md_path: str, position: int) -> None:
+        """Upload and add the PDF corresponding to md_path into the same module."""
+        md_stem = self._normalize_stem(Path(md_path).stem)
+        pdf_path = self.pdf_by_stem.get(md_stem)
+
+        if not pdf_path:
+            if self.verbose:
+                console.print(
+                    f"    [yellow]⚠[/yellow] No matching PDF for: {md_path}"
+                )
+            return
+
+        try:
+            canvas_file_url = self.client.upload_file(pdf_path, "/module_pdfs")
+        except Exception as exc:
+            if self.verbose:
+                console.print(
+                    f"    [yellow]⚠[/yellow] PDF upload failed for {pdf_path.name}: {exc}"
+                )
+            return
+
+        file_id = self._extract_file_id(canvas_file_url)
+        if file_id is None:
+            if self.verbose:
+                console.print(
+                    f"    [yellow]⚠[/yellow] Could not parse Canvas file ID for {pdf_path.name}"
+                )
+            return
+
+        result = self.client.add_file_to_module(
+            module_id=module_id,
+            file_id=file_id,
+            title=pdf_path.name,
+            position=position,
+        )
+        if result and self.verbose:
+            console.print(f"    [green]✓[/green] Added PDF: {pdf_path.name}")
 
     def _find_page(
         self, pages_by_title: dict[str, dict], title: str
@@ -213,7 +291,9 @@ class ModuleUploader:
 def upload_all_modules(
     client: CanvasUploader,
     docs_root: str = "docs",
+    pdf_root: str = "pdf",
     mkdocs_path: str = "mkdocs.yml",
+    add_pdf: bool = False,
     verbose: bool = False,
 ) -> None:
     """Parse mkdocs.yml and upload all sections as Canvas modules."""
@@ -227,7 +307,13 @@ def upload_all_modules(
         err_console.print("No sections found in mkdocs.yml nav.")
         raise typer.Exit(1)
 
-    uploader = ModuleUploader(client=client, docs_root=Path(docs_root), verbose=verbose)
+    uploader = ModuleUploader(
+        client=client,
+        docs_root=Path(docs_root),
+        pdf_root=Path(pdf_root),
+        add_pdf=add_pdf,
+        verbose=verbose,
+    )
     uploader.upload_all(sections)
 
 

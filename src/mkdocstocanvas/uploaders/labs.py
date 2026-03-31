@@ -141,7 +141,6 @@ def upload_all_labs(
     lab_files = find_lab_files(Path(docs_root))
     if not lab_files:
         err_console.print(f"No lab*.md files found under {docs_root}/")
-        raise typer.Exit(1)
 
     if verbose:
         console.print(f"[dim]Found {len(lab_files)} lab file(s).[/dim]")

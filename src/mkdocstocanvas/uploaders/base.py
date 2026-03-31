@@ -122,9 +122,16 @@ class ContentUploader:
             if not full_path.exists() or full_path.is_dir():
                 return match.group(0)
 
-            rel_path = full_path.relative_to(docs_root_abs)
+            try:
+                rel_path = full_path.relative_to(docs_root_abs)
+            except ValueError:
+                return match.group(0)
+
             rel_path_str = str(rel_path)
             parent_folder = f"/{rel_path.parent}".rstrip("/")
+
+            if parent_folder in ("", "/."):
+                parent_folder = "/course_files"
 
             current_hash = compute_file_hash(full_path)
             cached = self.files_cache.get(rel_path_str)
@@ -147,7 +154,7 @@ class ContentUploader:
 
             return match.group(0)
 
-        return _ASSET_PATTERN.sub(replace_asset, md_page.content, re.IGNORECASE)
+        return _ASSET_PATTERN.sub(replace_asset, md_page.content)
 
     def _resolve_page_links(self, md_page: MarkdownPage) -> str:
         """

@@ -187,7 +187,7 @@ def upload_pages(
 def upload_modules(
     ctx: typer.Context,
     add_pdf: Annotated[
-        bool, typer.Option(help="Add corresponding page pdf:s to the modules.")
+        bool, typer.Option(help="Make and add corresponding page pdf:s to the modules.")
     ] = False,
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Enable verbose output.")
@@ -196,7 +196,10 @@ def upload_modules(
     """
     Uploads modules.
     """
-    upload_all_modules(ctx.obj["client"], verbose=verbose)
+    if add_pdf:
+        pdf()
+
+    upload_all_modules(ctx.obj["client"], add_pdf=add_pdf, verbose=verbose)
 
 
 @app.command()
