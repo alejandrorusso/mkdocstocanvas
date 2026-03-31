@@ -84,6 +84,9 @@ const api = {
 !!! note "Standard Note"
 This is a standard note. It should be blue with a bold title.
 
+!!! tip "Tip"
+This is a tip. It should be green.
+
 !!! warning "Crucial Warning"
 This is a warning. It should be orange/yellow.
 
