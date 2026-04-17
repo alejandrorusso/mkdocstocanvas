@@ -1,23 +1,23 @@
 [project]
 name = "mkdocstocanvas"
-version = "0.1.0"
+version = "3.0.0.dev4"
 description = "Upload MkDocs course content to Canvas LMS"
 authors = [
   { name="Nithit Sathornkit", email="nithit@chalmers.se" },
 ]
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
-    "markdown>=3.10.2",
-    "pymdown-extensions>=10.21",
+    "markdown>=3.5.0",
+    "pymdown-extensions>=10.0",
     "python-dotenv>=1.0.0",
     "openpyxl>=3.1.5",
-    "pyyaml>=6.0.3",
-    "requests>=2.32.5",
+    "pyyaml>=6.0.1",
+    "requests>=2.32.0",
     "rich>=13.0.0",
-    "typer>=0.23.2",
-    "mkdocs-material>=9.7.1",
-    "mkdocs-include-markdown-plugin>=7.2.1",
+    "typer>=0.12.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-include-markdown-plugin>=6.0.0",
     "mkdocs-excel-plugin>=1.0.0",
     "mkdocs-page-pdf>=0.4.0",
 ]
