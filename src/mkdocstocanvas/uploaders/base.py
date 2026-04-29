@@ -17,7 +17,7 @@ from ..processing.markdown import process_markdown_to_html
 
 # Matches [text](path/to/page.md) and [text](path/to/page.md#anchor)
 _MD_LINK_PATTERN = re.compile(
-    r"\[([^\]]*)\]\(\s*([^\s\)#]+\.md)(#[^\s\)]*)?\s*\)",
+    r"\[([^\]]*)\]\(\s*([^\s\)#]+\.(?:md|markdown))(#[^\s\)\"']*)?(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)",
     re.IGNORECASE,
 )
 
@@ -58,10 +58,18 @@ class ContentUploader:
 
     def _save_cache(self) -> None:
         """Persist pages_cache and files_cache to disk."""
-        utils_cache.save_cache(
-            self.cache_path,
-            {"pages": self.pages_cache, "files": self.files_cache},
-        )
+        try:
+            utils_cache.save_cache(
+                self.cache_path,
+                {"pages": self.pages_cache, "files": self.files_cache},
+            )
+        except OSError as e:
+            raise RuntimeError(
+                "Cannot write upload cache at "
+                f"'{self.cache_path}'. Cache must be writable to keep links in sync. "
+                "Fix ownership/permissions (e.g. chown/chmod) and rerun. "
+                f"Original error: {e}"
+            ) from e
 
     # ------------------------------------------------------------------
     # Content pipeline
@@ -76,6 +84,10 @@ class ContentUploader:
 
         Returns the finished HTML string.
         """
+        # Important: always start from source markdown on each upload attempt.
+        # `md_page.content` is mutated by this pipeline; without resetting,
+        # re-uploads can keep stale already-rewritten Canvas links.
+        md_page.content = md_page.get_content()
         md_page.content = self._process_markdown_assets(md_page)
         md_page.content = self._resolve_page_links(md_page)
         return process_markdown_to_html(md_page)

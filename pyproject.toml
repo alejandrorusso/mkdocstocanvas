@@ -1,6 +1,6 @@
 [project]
 name = "mkdocstocanvas"
-version = "3.0.0.dev4"
+version = "3.0.0.dev5"
 description = "Upload MkDocs course content to Canvas LMS"
 authors = [
   { name="Nithit Sathornkit", email="nithit@chalmers.se" },

@@ -27,12 +27,16 @@ class ModuleUploader:
         pdf_root: Path = Path("pdf"),
         add_pdf: bool = False,
         verbose: bool = False,
+        syllabus_rel_path: str | None = None,
     ):
         self.client = client
         self.docs_root = docs_root
         self.pdf_root = pdf_root
         self.add_pdf = add_pdf
         self.verbose = verbose
+        self.syllabus_rel_path = (
+            Path(syllabus_rel_path).as_posix() if syllabus_rel_path else None
+        )
         self.pdf_by_stem = self._index_pdfs() if add_pdf else {}
 
     def upload_all(self, sections: list[dict]) -> None:
@@ -80,11 +84,26 @@ class ModuleUploader:
                     self.client.delete_module(m["id"])
                     progress.advance(del_task)
 
-        # Skip lab sections
-        to_upload = [s for s in sections if not s["name"].lower().startswith("lab")]
-        skipped_labs = len(sections) - len(to_upload)
+        # Skip lab and syllabus sections
+        to_upload: list[dict] = []
+        skipped_labs = 0
+        skipped_syllabus_sections = 0
+        for section in sections:
+            section_name = section["name"].strip().lower()
+            if section_name.startswith("lab"):
+                skipped_labs += 1
+                continue
+            if section_name == "syllabus":
+                skipped_syllabus_sections += 1
+                continue
+            to_upload.append(section)
+
         if self.verbose and skipped_labs:
             console.print(f"[dim]Skipping {skipped_labs} lab section(s).[/dim]")
+        if self.verbose and skipped_syllabus_sections:
+            console.print(
+                f"[dim]Skipping {skipped_syllabus_sections} syllabus section(s).[/dim]"
+            )
 
         results: list[dict] = []
 
@@ -135,7 +154,14 @@ class ModuleUploader:
         added = 0
         position = 1
         for md_path in pages:
+            md_rel = Path(md_path).as_posix()
             if md_path.startswith("labs/"):
+                continue
+            if self.syllabus_rel_path and md_rel == self.syllabus_rel_path:
+                if self.verbose:
+                    console.print(
+                        f"    [dim]Skipping syllabus page in module: {md_path}[/dim]"
+                    )
                 continue
 
             full_path = self.docs_root / md_path
@@ -307,12 +333,15 @@ def upload_all_modules(
         err_console.print("No sections found in mkdocs.yml nav.")
         raise typer.Exit(1)
 
+    syllabus_rel_path = utils_config.parse_syllabus_nav_file(mkdocs_path_obj)
+
     uploader = ModuleUploader(
         client=client,
         docs_root=Path(docs_root),
         pdf_root=Path(pdf_root),
         add_pdf=add_pdf,
         verbose=verbose,
+        syllabus_rel_path=syllabus_rel_path,
     )
     uploader.upload_all(sections)
 

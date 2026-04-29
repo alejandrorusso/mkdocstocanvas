@@ -133,6 +133,15 @@ class CanvasUploader:
         # 3. Check existence to decide between PUT (update) and POST (create)
         existing_page = self.get_existing_page(page_slug)
 
+        # Fallback: if slug lookup fails (often due to stale/missing cache),
+        # try to find a unique page by title and update that page instead of
+        # creating a duplicate.
+        if not existing_page:
+            title_slug = self._find_unique_page_slug_by_title(title)
+            if title_slug:
+                page_slug = title_slug
+                existing_page = self.get_existing_page(page_slug)
+
         try:
             if existing_page:
                 url = (
@@ -160,6 +169,21 @@ class CanvasUploader:
                 f"[bold red]Network Error saving page '{title}':[/bold red] {str(e)}"
             )
             return None
+
+    def _find_unique_page_slug_by_title(self, title: str) -> str | None:
+        """
+        Return a page slug when there is exactly one Canvas page with this title.
+
+        This avoids creating duplicate pages when local cache is missing/stale.
+        If multiple pages share the same title, returns None to avoid ambiguity.
+        """
+        normalized = title.strip().lower()
+        matches = [
+            p for p in self.list_pages() if p.get("title", "").strip().lower() == normalized
+        ]
+        if len(matches) == 1:
+            return matches[0].get("url")
+        return None
 
     def upload_file(self, file: Path, folder_path: str = "/course_files") -> str:
         """
@@ -219,7 +243,7 @@ class CanvasUploader:
         # Canvas gives us an internal ID and a preview URL.
         # For embedding in HTML, the preview/download URL is usually what you want.
         file_id = final_data.get("id")
-        return f"{self.base_url}/courses/{self.course_id}/files/{file_id}/preview"
+        return f"{self.base_url}/courses/{self.course_id}/files/{file_id}?wrap=1"
 
     def list_pages(self) -> list[dict]:
         """

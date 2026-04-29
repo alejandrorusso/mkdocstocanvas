@@ -17,9 +17,12 @@ def load_cache(cache: Path) -> dict:
 
 
 def save_cache(cache: Path, metadata: dict):
-    """Save upload metadata to file"""
-    try:
-        with open(cache, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=2, sort_keys=True)
-    except Exception as e:
-        print(f"⚠ Warning: Could not save upload metadata: {e}")
+    """Save upload metadata to file (atomic write)."""
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    tmp_cache = cache.with_name(f"{cache.name}.tmp")
+
+    with open(tmp_cache, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, sort_keys=True)
+
+    # Atomic replace: either the old cache remains, or the new one fully lands.
+    tmp_cache.replace(cache)

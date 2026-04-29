@@ -27,9 +27,19 @@ class PageUploader(ContentUploader):
         cache: str = ".canvas_upload_state.json",
         force: bool = False,
         verbose: bool = False,
+        syllabus_rel_path: str | None = None,
     ) -> None:
         super().__init__(client=client, cache=cache, force=force)
         self.verbose = verbose
+        self.syllabus_rel_path = (
+            Path(syllabus_rel_path).as_posix() if syllabus_rel_path else None
+        )
+
+    def _is_syllabus_rel(self, rel: str) -> bool:
+        return bool(self.syllabus_rel_path and rel == self.syllabus_rel_path)
+
+    def _is_syllabus_page(self, md_page: MarkdownPage) -> bool:
+        return self._is_syllabus_rel(str(md_page.rel_path))
 
     def upload_all_pages(self, pages: list[MarkdownPage]) -> None:
         """
@@ -68,6 +78,8 @@ class PageUploader(ContentUploader):
         # Stage 1: Upload dirty pages
         failed = 0
         uploaded_rels: set[str] = set()
+        upload_order: dict[str, int] = {}
+        upload_seq = 0
         upload_results: list[dict] = []
 
         with Progress(
@@ -91,6 +103,8 @@ class PageUploader(ContentUploader):
                     canvas_url = self._upload_page(page)
                     self._update_page_cache(rel, page, canvas_url)
                     uploaded_rels.add(rel)
+                    upload_order[rel] = upload_seq
+                    upload_seq += 1
                     upload_results.append(
                         {
                             "title": page.title or rel,
@@ -134,15 +148,31 @@ class PageUploader(ContentUploader):
         }
         mentioners_to_fix: set[str] = set()
         for changed_rel in slug_changed:
+            changed_index = upload_order.get(changed_rel)
             for mentioner_rel in self.pages_cache.get(changed_rel, {}).get(
                 "mentioned_by", []
             ):
-                if mentioner_rel not in uploaded_rels and mentioner_rel in pages_by_rel:
+                if mentioner_rel not in pages_by_rel:
+                    continue
+
+                mentioner_index = upload_order.get(mentioner_rel)
+
+                # Re-upload when either:
+                # 1) mentioner was not uploaded in Stage 1 (stale cache entry), or
+                # 2) mentioner was uploaded before the changed target got its slug.
+                if mentioner_index is None or (
+                    changed_index is not None and mentioner_index < changed_index
+                ):
                     mentioners_to_fix.add(mentioner_rel)
 
         if mentioners_to_fix:
             console.print(
                 f"Stage 2: Re-uploading {len(mentioners_to_fix)} page(s) with stale links..."
+            )
+            # Keep syllabus last so it gets the final link state.
+            stage2_rels = sorted(
+                mentioners_to_fix,
+                key=self._is_syllabus_rel,
             )
             with Progress(
                 TextColumn("[progress.description]{task.description}"),
@@ -153,9 +183,9 @@ class PageUploader(ContentUploader):
                 transient=True,
             ) as progress:
                 task2 = progress.add_task(
-                    "[cyan]Re-uploading pages...", total=len(mentioners_to_fix)
+                    "[cyan]Re-uploading pages...", total=len(stage2_rels)
                 )
-                for rel in mentioners_to_fix:
+                for rel in stage2_rels:
                     page = pages_by_rel[rel]
                     progress.update(
                         task2,
@@ -232,6 +262,7 @@ class PageUploader(ContentUploader):
         """Write a page's upload result into pages_cache, preserving mentioned_by."""
         page_url_slug = canvas_url.split("/pages/")[-1]
         existing = self.pages_cache.get(rel, {})
+        resolved_md_links = self._snapshot_resolved_md_links(page)
         self.pages_cache[rel] = {
             "page_title": page.title,
             "hash": page.md5,
@@ -239,7 +270,52 @@ class PageUploader(ContentUploader):
             "page_url_slug": page_url_slug,
             "last_upload": datetime.now().isoformat(),
             "mentioned_by": existing.get("mentioned_by", []),
+            "resolved_md_links": resolved_md_links,
         }
+
+    def _iter_md_link_targets(self, md_page: MarkdownPage) -> list[str]:
+        """
+        Return unique, in-order relative docs paths targeted by markdown `.md` links.
+        """
+        try:
+            raw = md_page.path.read_text(encoding="utf-8")
+        except OSError:
+            return []
+
+        docs_root_abs = md_page.root_path.resolve()
+        seen: set[str] = set()
+        targets: list[str] = []
+
+        for match in _MD_LINK_PATTERN.finditer(raw):
+            link_path_str = match.group(2)
+            resolved = (md_page.path.parent / link_path_str).resolve()
+            try:
+                link_rel = str(resolved.relative_to(docs_root_abs))
+            except ValueError:
+                continue
+
+            if link_rel not in seen:
+                seen.add(link_rel)
+                targets.append(link_rel)
+
+        return targets
+
+    def _snapshot_resolved_md_links(self, md_page: MarkdownPage) -> dict[str, str]:
+        """
+        Build a mapping of markdown-link targets to their currently known Canvas URLs.
+
+        Returns:
+            dict[target_rel_path -> canvas_url]
+        """
+        resolved_links: dict[str, str] = {}
+
+        for link_rel in self._iter_md_link_targets(md_page):
+            info = self.pages_cache.get(link_rel)
+            canvas_url = info.get("canvas_url") if isinstance(info, dict) else None
+            if canvas_url:
+                resolved_links[link_rel] = canvas_url
+
+        return resolved_links
 
     def _collect_mentions(self, pages: list[MarkdownPage]) -> None:
         """
@@ -255,23 +331,10 @@ class PageUploader(ContentUploader):
 
         if not pages:
             return
-        docs_root_abs = pages[0].root_path.resolve()
 
         for page in pages:
             page_rel = str(page.rel_path)
-            try:
-                raw = page.path.read_text(encoding="utf-8")
-            except OSError:
-                continue
-
-            for match in _MD_LINK_PATTERN.finditer(raw):
-                link_path_str = match.group(2)
-                resolved = (page.path.parent / link_path_str).resolve()
-                try:
-                    link_rel = str(resolved.relative_to(docs_root_abs))
-                except ValueError:
-                    continue
-
+            for link_rel in self._iter_md_link_targets(page):
                 if link_rel not in self.pages_cache:
                     self.pages_cache[link_rel] = {"mentioned_by": []}
 
@@ -291,7 +354,7 @@ class PageUploader(ContentUploader):
         info = self.pages_cache.get(str(md_page.rel_path))
         url_slug = info.get("page_url_slug") if info else None
 
-        if md_page.title.lower() == "syllabus":
+        if self._is_syllabus_page(md_page):
             return self.client.upload_syllabus(html_page)  # pyright: ignore
 
         return self.client.create_or_update_page(
@@ -328,6 +391,10 @@ class PageUploader(ContentUploader):
             if self._needs_upload(md_page):
                 pages_to_upload.append(md_page)
 
+        # Keep syllabus last so its internal links are resolved with the final
+        # set of uploaded page/lab URLs.
+        pages_to_upload.sort(key=self._is_syllabus_page)
+
         return pages_to_upload
 
     def _needs_upload(self, md_page: MarkdownPage) -> bool:
@@ -351,6 +418,15 @@ class PageUploader(ContentUploader):
         if cached_info.get("hash") != md_page.md5:
             return True  # File content changed
 
+        # Re-upload if any linked page/lab now resolves to a different Canvas URL
+        # than the one this page was last uploaded with.
+        cached_links = cached_info.get("resolved_md_links", {})
+        if not isinstance(cached_links, dict):
+            cached_links = {}
+        current_links = self._snapshot_resolved_md_links(md_page)
+        if cached_links != current_links:
+            return True
+
         page_url_slug = cached_info.get("page_url_slug")
         if not page_url_slug:
             return True  # It has metadata, but no Canvas slug! Force upload.
@@ -359,7 +435,7 @@ class PageUploader(ContentUploader):
         if (
             not self.client.get_existing_page(page_url_slug)
             # If syllabus, ignore existence check
-            and md_page.title.lower() != "syllabus"
+            and not self._is_syllabus_page(md_page)
         ):
             return True  # Page was deleted from Canvas, needs re-upload
 
@@ -395,7 +471,14 @@ def parse_upload_all_pages(
 
     markdown_pages = [MarkdownPage(docs_root / p) for p in markdown_files]
 
-    uploader = PageUploader(client=client, force=force, verbose=verbose)
+    syllabus_rel_path = utils_config.parse_syllabus_nav_file(mkdocs_path)
+
+    uploader = PageUploader(
+        client=client,
+        force=force,
+        verbose=verbose,
+        syllabus_rel_path=syllabus_rel_path,
+    )
 
     uploader.upload_all_pages(markdown_pages)
 
