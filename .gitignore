@@ -6,8 +6,7 @@
 node_modules/
 package-lock.json
 
-# Canvas API credentials and tokens
-tokens.sh
+# Canvas API credentials
 .env
 
 # Canvas upload state cache

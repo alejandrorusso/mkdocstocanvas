@@ -66,20 +66,19 @@ apt-get update \
 
 ### 2. Configure Canvas API Access
 
-Create a `tokens.sh` file with your Canvas credentials:
+Copy the example environment file and fill in your Canvas credentials:
 
 ```bash
-cp tokens.sh.example tokens.sh
-# Edit tokens.sh with your actual credentials
+cp .env.example .env
+# Edit .env with your actual credentials
 ```
 
-Edit `tokens.sh`:
+Edit `.env`:
 
 ```bash
-#!/bin/bash
-export CANVAS_API_TOKEN="your_canvas_api_token_here"
-export CANVAS_BASE_URL="https://canvas.instructure.com"  # or your institution's URL
-export CANVAS_COURSE_ID="your_course_id_here"
+CANVAS_API_TOKEN="your_canvas_api_token_here"
+CANVAS_BASE_URL="https://canvas.instructure.com"  # or your institution's URL
+CANVAS_COURSE_ID="your_course_id_here"
 ```
 
 **Getting your Canvas API Token:**
@@ -96,12 +95,6 @@ The course ID is in the URL when viewing your course:
 ```
 https://canvas.instructure.com/courses/12345
                                          ^^^^^ this is your course ID
-```
-
-### 4. Make Scripts Executable
-
-```bash
-chmod +x tokens.sh
 ```
 
 ## Configuration
@@ -156,7 +149,7 @@ canvas-course-publisher/
 │   └── canvas_processing.py
 ├── Makefile                 # Build and deployment commands
 ├── mkdocs.yml              # MkDocs configuration
-├── tokens.sh               # Canvas API credentials (gitignored)
+├── .env                     # Canvas API credentials (gitignored)
 ├── .canvas_upload_state.json  # Upload cache (auto-generated)
 ├── pdf/                    # Generated PDFs (auto-created)
 └── site/                   # Built site (auto-created)
@@ -164,7 +157,7 @@ canvas-course-publisher/
 
 **Important Files:**
 - `.canvas_upload_state.json` - Tracks upload state; delete to force re-upload all files
-- `tokens.sh` - Must be created with your Canvas API credentials (not tracked in git)
+- `.env` - Must be created with your Canvas API credentials (not tracked in git)
 
 ## How It Works
 
@@ -473,7 +466,7 @@ theme:
 - Clear metadata: `rm .canvas_upload_state.json && make upload-pages`
 
 **Canvas API errors**:
-- Verify your Canvas API token in `tokens.sh`
+- Verify your Canvas API token in `.env`
 - Check course ID is correct
 - Ensure token has proper permissions (manage course content)
 

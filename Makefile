@@ -1,61 +1,89 @@
-.PHONY: serve serve-full pdf delete-pages delete-modules delete-labs upload-pages upload-pages-force upload-modules upload-labs test clean
+.PHONY: serve serve-full pdf upload-pages upload-pages-force upload-modules upload-labs upload-all delete-pages delete-modules delete-labs delete-all rebuild test clean
+
+# Host/port for the local dev server (override with: make serve PORT=9000)
+HOST ?= 0.0.0.0
+PORT ?= 8000
+
+# Runs the CLI. Canvas credentials are read automatically from a .env file
+# (copy .env.example to create it) or from the environment.
+define canvas
+uv run mkdocstocanvas $(1)
+endef
+
+# ---------------------------------------------------------------
+# Local development
+# ---------------------------------------------------------------
+
+# Serve the documentation locally (fast mode - better live reload)
+serve:
+	@$(call canvas,serve -a $(HOST):$(PORT))
+
+# Serve with all plugins enabled (slower reload)
+serve-full:
+	@$(call canvas,serve -a $(HOST):$(PORT) --all-plugins)
+
+# Build site and collect generated PDFs into pdf/
+pdf:
+	@$(call canvas,pdf)
+
+# ---------------------------------------------------------------
+# Upload to Canvas
+# ---------------------------------------------------------------
+
+# Upload pages (incremental - only changed files)
+upload-pages:
+	@$(call canvas,upload-pages)
+
+# Force upload pages (ignores the upload cache)
+upload-pages-force:
+	@$(call canvas,upload-pages --force)
+
+# Upload pages + build modules with PDFs attached
+upload-modules:
+	@$(call canvas,upload-modules --add-pdf)
+
+# Upload lab*.md files as Canvas assignments
+upload-labs:
+	@$(call canvas,upload-labs)
+
+# Upload everything: pages, modules and labs
+upload-all:
+	@$(call canvas,upload-all)
+
+# ---------------------------------------------------------------
+# Delete from Canvas
+# ---------------------------------------------------------------
+# ⚠️ These permanently delete Canvas content. They ask for
+# confirmation unless you pass --force (not used here).
+
+delete-pages:
+	@$(call canvas,delete-pages)
+
+delete-modules:
+	@$(call canvas,delete-modules)
+
+delete-labs:
+	@$(call canvas,delete-labs)
+
+# Delete everything: pages, modules and labs
+delete-all:
+	@$(call canvas,delete-all)
+
+# ⚠️ Complete rebuild: deletes ALL Canvas content (no confirmation),
+# then re-uploads everything. Use only for fresh setup or full resets.
+rebuild:
+	@$(call canvas,delete-all --force)
+	@$(call canvas,upload-all --force)
+
+# ---------------------------------------------------------------
+# Misc
+# ---------------------------------------------------------------
 
 # Run the test suite
 test:
 	uv run pytest
 
-# Serve the documentation locally (fast mode - better live reload)
-serve:
-	mkdocs serve -a 0.0.0.0:8000 --watch-theme --livereload
-
-# Serve with all plugins enabled (slower reload)
-serve-full:
-	mkdocs serve -a 0.0.0.0:8000
-
-# Build site and generate PDFs (dependency for upload-modules)
-pdf:
-	mkdocs build --clean
-	mkdir -p pdf
-	find site -name "*.pdf" -exec cp {} pdf/ \;
-	python3 scripts/rename_pdfs_with_order.py
-	@echo "✓ PDFs generated and renamed in /pdf directory"
-
-# Delete all pages from Canvas
-delete-pages:
-	@echo "⚠️  Deleting all pages from Canvas..."
-	bash -c "source ./tokens.sh && echo 'yes' | python3 scripts/upload_all_pages_to_canvas.py --delete-pages"
-
-# Delete all modules from Canvas
-delete-modules:
-	@echo "⚠️  Deleting all modules from Canvas..."
-	bash -c "source ./tokens.sh && echo 'yes' | python3 scripts/upload_modules_to_canvas.py --delete-only"
-
-# Delete all lab assignments from Canvas
-delete-labs:
-	@echo "⚠️  Deleting all lab assignments from Canvas..."
-	bash -c "source ./tokens.sh && echo 'yes' | python3 scripts/upload_labs_to_canvas.py --delete"
-
-# Upload all pages to Canvas (incremental - only changed files)
-upload-pages:
-	@echo "📄 Uploading pages to Canvas (incremental - only changed files)..."
-	bash -c "source ./tokens.sh && python3 scripts/upload_all_pages_to_canvas.py"
-
-# Force upload all pages to Canvas (ignores cache)
-upload-pages-force:
-	@echo "📄 Force uploading all pages to Canvas (ignoring cache)..."
-	bash -c "source ./tokens.sh && python3 scripts/upload_all_pages_to_canvas.py --force"
-
-# Upload modules to Canvas (includes pages + PDFs) - requires PDFs to be built first
-upload-modules: pdf
-	@echo "📚 Uploading modules (pages + PDFs) to Canvas..."
-	bash -c "source ./tokens.sh && python3 scripts/upload_modules_to_canvas.py"
-
-# Upload lab assignments to Canvas
-upload-labs:
-	@echo "🧪 Uploading lab assignments to Canvas..."
-	bash -c "source ./tokens.sh && python3 scripts/upload_labs_to_canvas.py"
-
-# Clean generated files
+# Clean generated files (the upload cache .canvas_upload_state.json is kept)
 clean:
 	rm -rf site/ pdf/
 	@echo "✓ Cleaned site/ and pdf/ directories"
