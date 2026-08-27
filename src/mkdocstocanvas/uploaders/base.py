@@ -9,11 +9,160 @@ duplicating logic.
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
+
+import typer
+from rich.console import Console
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+from rich.table import Table
 
 from ..utils import cache as utils_cache
 from ..api.canvas import CanvasUploader
 from ..models.page import MarkdownPage, compute_file_hash
 from ..processing.markdown import process_markdown_to_html
+
+# Shared consoles — all uploaders print through these so output is consistent.
+console = Console()
+err_console = Console(stderr=True, style="bold red")
+
+
+def make_progress() -> Progress:
+    """Standard transient progress bar used by all upload/delete flows."""
+    return Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    )
+
+
+def require_connection(client: CanvasUploader) -> None:
+    """Test the Canvas connection; print the result and exit on failure."""
+    success, message = client.test_connection()
+    if not success:
+        err_console.print(message)
+        raise typer.Exit(1)
+    console.print(message)
+
+
+def print_results_summary(
+    title: str,
+    results: list[dict],
+    *,
+    name_column: str,
+    detail_column: str,
+    detail_of: Callable[[dict], str],
+    ok_label: str,
+) -> None:
+    """Print a rich summary table for an upload run."""
+    ok = sum(1 for r in results if r["status"] == "ok")
+    errors = sum(1 for r in results if r["status"] == "error")
+
+    table = Table(title=title, show_header=True, header_style="bold cyan")
+    table.add_column("Status", min_width=12, no_wrap=True)
+    table.add_column(name_column)
+    table.add_column(detail_column)
+    for r in results:
+        status = (
+            f"[green]✓ {ok_label}[/green]"
+            if r["status"] == "ok"
+            else "[red]✗ Failed[/red]"
+        )
+        table.add_row(status, r["name"], detail_of(r))
+    console.print(table)
+    console.print(
+        f"[bold]Total:[/bold] {len(results)} | "
+        f"[green]{ok_label}: {ok}[/green] | "
+        f"[red]Failed: {errors}[/red]"
+    )
+
+
+def delete_all_items(
+    items: list[dict],
+    delete: Callable[[dict], bool],
+    *,
+    noun: str,
+    name_column: str,
+    columns: list[tuple[str, str | None]],
+    row_values: Callable[[dict], tuple[str, str]],
+    assume_yes: bool = False,
+) -> None:
+    """
+    Shared deletion flow: preview table, confirmation, progress bar,
+    and a summary table.
+
+    Args:
+        items: The Canvas objects to delete, as returned by the list API.
+        delete: Called once per item; must return True on success.
+        noun: Entity name for messages, e.g. "page" or "module".
+        name_column: Header of the name column in the summary table.
+        columns: (header, justify) pairs for the preview table.
+        row_values: Returns the (name, extra) values shown for each item.
+        assume_yes: Skip the interactive confirmation (the --force flag).
+    """
+    if not items:
+        console.print(f"No {noun}s found. Nothing to delete.")
+        return
+
+    preview = Table(show_header=True, header_style="bold yellow")
+    for header, justify in columns:
+        preview.add_column(header, justify=justify)
+    for item in items:
+        preview.add_row(*row_values(item))
+    console.print(preview)
+    console.print(
+        f"[bold yellow]⚠ {len(items)} {noun}(s) will be permanently deleted.[/bold yellow]"
+    )
+
+    if not assume_yes:
+        typer.confirm(
+            f"Are you sure you want to delete ALL these {noun}s?", abort=True
+        )
+
+    deleted = 0
+    failed = 0
+    results: list[dict] = []
+
+    with make_progress() as progress:
+        task = progress.add_task(f"[red]Deleting {noun}s...", total=len(items))
+        for item in items:
+            name = row_values(item)[0]
+            progress.update(task, description=f"[red]Deleting [bold]{name}[/bold]...")
+            if delete(item):
+                deleted += 1
+                results.append({"name": name, "status": "ok"})
+            else:
+                failed += 1
+                results.append({"name": name, "status": "error"})
+            progress.advance(task)
+
+    summary = Table(
+        title="Deletion Summary", show_header=True, header_style="bold cyan"
+    )
+    summary.add_column("Status", min_width=12, no_wrap=True)
+    summary.add_column(name_column)
+    for r in results:
+        if r["status"] == "ok":
+            summary.add_row("[green]✓ Deleted[/green]", r["name"])
+        else:
+            summary.add_row("[red]✗ Failed[/red]", r["name"])
+    console.print(summary)
+    console.print(
+        f"[bold]Total:[/bold] {len(items)} | "
+        f"[green]Deleted: {deleted}[/green] | "
+        f"[red]Failed: {failed}[/red]"
+    )
+
+    if failed and not deleted:
+        raise typer.Exit(code=1)
 
 # Matches [text](path/to/page.md) and [text](path/to/page.md#anchor)
 _MD_LINK_PATTERN = re.compile(

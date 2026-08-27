@@ -2,23 +2,20 @@ from pathlib import Path
 from datetime import datetime
 import typer
 import requests
-from rich.console import Console
-from rich.progress import (
-    Progress,
-    BarColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
 from rich.table import Table
 
 from ..utils import config as utils_config
 from ..api.canvas import CanvasUploader
 from ..models.page import MarkdownPage
-from .base import ContentUploader, _MD_LINK_PATTERN
-
-console = Console()
-err_console = Console(stderr=True, style="bold red")
+from .base import (
+    ContentUploader,
+    _MD_LINK_PATTERN,
+    console,
+    delete_all_items,
+    err_console,
+    make_progress,
+    require_connection,
+)
 
 
 class PageUploader(ContentUploader):
@@ -46,12 +43,7 @@ class PageUploader(ContentUploader):
         """
         Uploads all pages to canvas.
         """
-        # Test connection
-        success, message = self.client.test_connection()
-        if not success:
-            err_console.print(message)
-            raise typer.Exit(1)
-        console.print(message)
+        require_connection(self.client)
 
         # Build/refresh the mentioned_by index before uploading anything
         self._collect_mentions(pages)
@@ -83,14 +75,7 @@ class PageUploader(ContentUploader):
         upload_seq = 0
         upload_results: list[dict] = []
 
-        with Progress(
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            console=console,
-            transient=True,
-        ) as progress:
+        with make_progress() as progress:
             task = progress.add_task(
                 "[cyan]Uploading pages...", total=len(pages_to_upload)
             )
@@ -175,14 +160,7 @@ class PageUploader(ContentUploader):
                 mentioners_to_fix,
                 key=self._is_syllabus_rel,
             )
-            with Progress(
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TimeElapsedColumn(),
-                console=console,
-                transient=True,
-            ) as progress:
+            with make_progress() as progress:
                 task2 = progress.add_task(
                     "[cyan]Re-uploading pages...", total=len(stage2_rels)
                 )
@@ -494,73 +472,17 @@ def delete_all_pages(client: CanvasUploader, force: bool = False) -> None:
     Lists pages, asks for confirmation (unless force=True), deletes with a
     progress bar, and prints a rich summary table.
     """
-    success, message = client.test_connection()
-    if not success:
-        err_console.print(message)
-        raise typer.Exit(1)
-    console.print(message)
+    require_connection(client)
 
     console.print("Fetching pages...")
     pages = client.list_pages()
 
-    if not pages:
-        console.print("No pages found. Nothing to delete.")
-        return
-
-    preview = Table(show_header=True, header_style="bold yellow")
-    preview.add_column("Title")
-    preview.add_column("Slug")
-    for p in pages:
-        preview.add_row(p.get("title", "Untitled"), p.get("url", ""))
-    console.print(preview)
-    console.print(
-        f"[bold yellow]⚠ {len(pages)} page(s) will be permanently deleted.[/bold yellow]"
+    delete_all_items(
+        pages,
+        lambda p: client.delete_page(p.get("url", "")),
+        noun="page",
+        name_column="Page",
+        columns=[("Title", None), ("Slug", None)],
+        row_values=lambda p: (p.get("title", "Untitled"), p.get("url", "")),
+        assume_yes=force,
     )
-
-    if not force:
-        typer.confirm("Are you sure you want to delete ALL these pages?", abort=True)
-
-    deleted = 0
-    failed = 0
-    results: list[dict] = []
-
-    with Progress(
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        console=console,
-        transient=True,
-    ) as progress:
-        task = progress.add_task("[red]Deleting pages...", total=len(pages))
-        for page in pages:
-            slug = page.get("url", "")
-            title = page.get("title", "Untitled")
-            progress.update(task, description=f"[red]Deleting [bold]{title}[/bold]...")
-            if client.delete_page(slug):
-                deleted += 1
-                results.append({"title": title, "status": "ok"})
-            else:
-                failed += 1
-                results.append({"title": title, "status": "error"})
-            progress.advance(task)
-
-    summary = Table(
-        title="Deletion Summary", show_header=True, header_style="bold cyan"
-    )
-    summary.add_column("Status", min_width=12, no_wrap=True)
-    summary.add_column("Page")
-    for r in results:
-        if r["status"] == "ok":
-            summary.add_row("[green]✓ Deleted[/green]", r["title"])
-        else:
-            summary.add_row("[red]✗ Failed[/red]", r["title"])
-    console.print(summary)
-    console.print(
-        f"[bold]Total:[/bold] {len(pages)} | "
-        f"[green]Deleted: {deleted}[/green] | "
-        f"[red]Failed: {failed}[/red]"
-    )
-
-    if failed and not deleted:
-        raise typer.Exit(code=1)
