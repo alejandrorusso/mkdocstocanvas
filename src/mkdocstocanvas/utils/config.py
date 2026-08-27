@@ -1,7 +1,8 @@
-import yaml
-import typer
-from rich.console import Console
 from pathlib import Path
+
+import typer
+import yaml
+from rich.console import Console
 
 err_console = Console(stderr=True)
 
@@ -15,7 +16,7 @@ def _collect_markdown_files(items) -> list[str]:
         if isinstance(item, str) and item.endswith(".md"):
             files.append(item)
         elif isinstance(item, dict):
-            for _, value in item.items():
+            for value in item.values():
                 if isinstance(value, str) and value.endswith(".md"):
                     files.append(value)
                 elif isinstance(value, list):
@@ -26,7 +27,7 @@ def _collect_markdown_files(items) -> list[str]:
 def parse_mkdocs_nav(mkdocs_path: Path) -> list[str] | None:
     """Parse mkdocs.yml and extract a flattened list of markdown files from the nav."""
     try:
-        with open(mkdocs_path, "r", encoding="utf-8") as f:
+        with open(mkdocs_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         # If there is no nav, MkDocs auto-discovers files.
@@ -39,7 +40,7 @@ def parse_mkdocs_nav(mkdocs_path: Path) -> list[str] | None:
             if isinstance(items, list):
                 for item in items:
                     if isinstance(item, dict):
-                        for key, value in item.items():
+                        for value in item.values():
                             if isinstance(value, str) and value.endswith(".md"):
                                 markdown_files.append(value)
                             elif isinstance(value, list):
@@ -49,17 +50,17 @@ def parse_mkdocs_nav(mkdocs_path: Path) -> list[str] | None:
 
         extract_files(nav)
         return markdown_files
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         err_console.print(f"[bold red]Error:[/bold red] Could not find {mkdocs_path}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except yaml.YAMLError as e:
         err_console.print(
             f"[bold red]Error parsing YAML in {mkdocs_path}:[/bold red] {e}"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         err_console.print_exception(show_locals=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def parse_mkdocs_nav_sections(mkdocs_path: Path) -> list[dict] | None:
@@ -71,7 +72,7 @@ def parse_mkdocs_nav_sections(mkdocs_path: Path) -> list[dict] | None:
         or None if no sections are found.
     """
     try:
-        with open(mkdocs_path, "r", encoding="utf-8") as f:
+        with open(mkdocs_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         sections: list[dict] = []
@@ -79,21 +80,25 @@ def parse_mkdocs_nav_sections(mkdocs_path: Path) -> list[dict] | None:
             if isinstance(item, dict):
                 for section_name, section_content in item.items():
                     pages = _collect_markdown_files(
-                        section_content if isinstance(section_content, list) else [section_content]
+                        section_content
+                        if isinstance(section_content, list)
+                        else [section_content]
                     )
                     if pages:
                         sections.append({"name": section_name, "pages": pages})
 
         return sections or None
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         err_console.print(f"[bold red]Error:[/bold red] Could not find {mkdocs_path}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except yaml.YAMLError as e:
-        err_console.print(f"[bold red]Error parsing YAML in {mkdocs_path}:[/bold red] {e}")
-        raise typer.Exit(1)
+        err_console.print(
+            f"[bold red]Error parsing YAML in {mkdocs_path}:[/bold red] {e}"
+        )
+        raise typer.Exit(1) from e
     except Exception as e:
         err_console.print_exception(show_locals=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def parse_syllabus_nav_file(
@@ -110,7 +115,7 @@ def parse_syllabus_nav_file(
     Returns "index.md" in the example above.
     """
     try:
-        with open(mkdocs_path, "r", encoding="utf-8") as f:
+        with open(mkdocs_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         for item in config.get("nav", []):
@@ -123,14 +128,14 @@ def parse_syllabus_nav_file(
                 return files[0] if files else None
 
         return None
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         err_console.print(f"[bold red]Error:[/bold red] Could not find {mkdocs_path}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except yaml.YAMLError as e:
         err_console.print(
             f"[bold red]Error parsing YAML in {mkdocs_path}:[/bold red] {e}"
         )
-        raise typer.Exit(1)
-    except Exception:
+        raise typer.Exit(1) from e
+    except Exception as e:
         err_console.print_exception(show_locals=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

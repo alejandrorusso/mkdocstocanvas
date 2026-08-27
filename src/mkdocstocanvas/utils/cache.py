@@ -10,7 +10,7 @@ def load_cache(cache: Path) -> dict:
         cache.write_text("{}", encoding="utf-8")
         return {}
 
-    with open(cache, "r", encoding="utf-8") as f:
+    with open(cache, encoding="utf-8") as f:
         # .strip() handles files that are just whitespace
         content = f.read().strip()
         return json.loads(content) if content else {}

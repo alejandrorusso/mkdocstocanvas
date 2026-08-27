@@ -1,8 +1,8 @@
 import mimetypes
 import re
 from pathlib import Path
-import requests
 
+import requests
 from rich.console import Console
 
 # Initialize the error console at the module level
@@ -76,7 +76,7 @@ class CanvasUploader:
                 return False, f"HTTP Error {status_code}: {e.response.text}"
 
         except requests.exceptions.RequestException as e:
-            return False, f"Network error connecting to Canvas: {str(e)}"
+            return False, f"Network error connecting to Canvas: {e!s}"
 
     def get_existing_page(self, page_slug: str) -> dict | None:
         """
@@ -177,7 +177,7 @@ class CanvasUploader:
             return None
         except requests.exceptions.RequestException as e:
             err_console.print(
-                f"[bold red]Network Error saving page '{title}':[/bold red] {str(e)}"
+                f"[bold red]Network Error saving page '{title}':[/bold red] {e!s}"
             )
             return None
 
@@ -190,7 +190,9 @@ class CanvasUploader:
         """
         normalized = title.strip().lower()
         matches = [
-            p for p in self.list_pages() if p.get("title", "").strip().lower() == normalized
+            p
+            for p in self.list_pages()
+            if p.get("title", "").strip().lower() == normalized
         ]
         if len(matches) == 1:
             return matches[0].get("url")
@@ -468,7 +470,7 @@ class CanvasUploader:
             return None
         except requests.exceptions.RequestException as e:
             err_console.print(
-                f"[bold red]Network error uploading syllabus:[/bold red] {str(e)}"
+                f"[bold red]Network error uploading syllabus:[/bold red] {e!s}"
             )
             return None
 

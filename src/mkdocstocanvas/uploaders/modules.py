@@ -1,6 +1,7 @@
 import re
-import typer
 from pathlib import Path
+
+import typer
 
 from ..api.canvas import CanvasUploader
 from ..utils import config as utils_config
@@ -92,9 +93,7 @@ class ModuleUploader:
         results: list[dict] = []
 
         with make_progress() as progress:
-            task = progress.add_task(
-                "[cyan]Uploading modules...", total=len(to_upload)
-            )
+            task = progress.add_task("[cyan]Uploading modules...", total=len(to_upload))
             for i, section in enumerate(to_upload, 1):
                 name = section["name"]
                 progress.update(
@@ -113,9 +112,7 @@ class ModuleUploader:
                 self.client.publish_module(module["id"])
 
                 if self.verbose:
-                    console.print(
-                        f"  [green]✓[/green] {name} ({pages_added} page(s))"
-                    )
+                    console.print(f"  [green]✓[/green] {name} ({pages_added} page(s))")
                 results.append({"name": name, "pages": pages_added, "status": "ok"})
                 progress.advance(task)
 
@@ -171,9 +168,7 @@ class ModuleUploader:
             if result:
                 added += 1
                 if self.verbose:
-                    console.print(
-                        f"    [green]✓[/green] Added: {canvas_page['title']}"
-                    )
+                    console.print(f"    [green]✓[/green] Added: {canvas_page['title']}")
                 if self.add_pdf:
                     self._add_matching_pdf_to_module(
                         module_id=module_id,
@@ -207,16 +202,16 @@ class ModuleUploader:
         match = re.search(r"/files/(\d+)/", canvas_file_url)
         return int(match.group(1)) if match else None
 
-    def _add_matching_pdf_to_module(self, module_id: int, md_path: str, position: int) -> None:
+    def _add_matching_pdf_to_module(
+        self, module_id: int, md_path: str, position: int
+    ) -> None:
         """Upload and add the PDF corresponding to md_path into the same module."""
         md_stem = self._normalize_stem(Path(md_path).stem)
         pdf_path = self.pdf_by_stem.get(md_stem)
 
         if not pdf_path:
             if self.verbose:
-                console.print(
-                    f"    [yellow]⚠[/yellow] No matching PDF for: {md_path}"
-                )
+                console.print(f"    [yellow]⚠[/yellow] No matching PDF for: {md_path}")
             return
 
         try:
@@ -244,9 +239,7 @@ class ModuleUploader:
         if result and self.verbose:
             console.print(f"    [green]✓[/green] Added PDF: {pdf_path.name}")
 
-    def _find_page(
-        self, pages_by_title: dict[str, dict], title: str
-    ) -> dict | None:
+    def _find_page(self, pages_by_title: dict[str, dict], title: str) -> dict | None:
         """Find a Canvas page by title, ignoring leading letter prefixes like 'A. '."""
         clean = re.sub(r"^[A-Z]\.\s+", "", title).strip().lower()
         for page_title, page in pages_by_title.items():
@@ -257,8 +250,8 @@ class ModuleUploader:
     def _extract_title(self, path: Path) -> str | None:
         """Extract the first # heading from a markdown file."""
         try:
-            for line in path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
+            for raw_line in path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
                 if re.match(r"^#\s+", line):
                     return re.sub(r"^#\s+", "", line).strip()
         except OSError:

@@ -1,16 +1,17 @@
-from typing import Annotated
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Annotated
+
 import typer
 from rich.console import Console
 
 from .api import create_client
 from .api.canvas import CanvasUploader
-from .uploaders.pages import parse_upload_all_pages, delete_all_pages
-from .uploaders.modules import upload_all_modules, delete_all_modules
-from .uploaders.labs import upload_all_labs, delete_all_labs
+from .uploaders.labs import delete_all_labs, upload_all_labs
+from .uploaders.modules import delete_all_modules, upload_all_modules
+from .uploaders.pages import delete_all_pages, parse_upload_all_pages
 
 app = typer.Typer(
     pretty_exceptions_short=False,
@@ -66,7 +67,7 @@ def serve(
     except KeyboardInterrupt:
         console.print("\nServer stopped.")
     except subprocess.CalledProcessError as e:
-        raise typer.Exit(e.returncode)
+        raise typer.Exit(e.returncode) from e
 
 
 @app.command()

@@ -1,6 +1,5 @@
 import re
 from pathlib import Path
-from typing import Dict, Optional
 
 from rich.console import Console
 
@@ -11,6 +10,8 @@ try:
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
+    load_workbook = None  # type: ignore[assignment,misc]
+    COLOR_INDEX = None  # type: ignore[assignment,misc]
 
 err_console = Console(stderr=True)
 
@@ -46,7 +47,7 @@ def apply_tint(rgb_hex: str, tint: float) -> str:
     return f"{r:02X}{g:02X}{b:02X}"
 
 
-def get_theme_colors(workbook) -> Dict[int, str]:
+def get_theme_colors(workbook) -> dict[int, str]:
     """
     Extract theme colors from workbook.
     Returns a dictionary mapping theme index to RGB hex color.
@@ -115,7 +116,7 @@ def get_theme_colors(workbook) -> Dict[int, str]:
 _color_warnings: set[str] = set()
 
 
-def color_to_hex(color_obj, theme_colors: Dict[int, str]) -> Optional[str]:
+def color_to_hex(color_obj, theme_colors: dict[int, str]) -> str | None:
     """Convert an openpyxl Color object to hex RGB string."""
     if not color_obj:
         return None
@@ -141,7 +142,7 @@ def color_to_hex(color_obj, theme_colors: Dict[int, str]) -> Optional[str]:
                     return apply_tint(base_color, color_obj.tint)
                 return base_color
 
-        if hasattr(color_obj, "indexed"):
+        if hasattr(color_obj, "indexed") and COLOR_INDEX is not None:
             idx_val = color_obj.indexed
             if isinstance(idx_val, int) and 0 <= idx_val < len(COLOR_INDEX):
                 return COLOR_INDEX[idx_val].replace("#", "")
@@ -156,7 +157,7 @@ def color_to_hex(color_obj, theme_colors: Dict[int, str]) -> Optional[str]:
     return None
 
 
-def render_excel_sheet_to_html(excel_path: Path, sheet_name: str = None) -> str:
+def render_excel_sheet_to_html(excel_path: Path, sheet_name: str | None = None) -> str:
     """
     Render an Excel sheet as an HTML table, preserving cell colors.
 
@@ -167,7 +168,7 @@ def render_excel_sheet_to_html(excel_path: Path, sheet_name: str = None) -> str:
     Returns:
         HTML table string
     """
-    if not OPENPYXL_AVAILABLE:
+    if load_workbook is None:
         return "<p><em>Note: Excel sheet rendering not available (openpyxl not installed)</em></p>"
 
     if not excel_path.exists():
@@ -182,6 +183,8 @@ def render_excel_sheet_to_html(excel_path: Path, sheet_name: str = None) -> str:
             sheet = workbook[sheet_name]
         else:
             sheet = workbook.active
+            if sheet is None:
+                return f"<p><em>Error: Workbook {excel_path} has no sheets</em></p>"
 
         theme_colors = get_theme_colors(workbook)
 
@@ -202,11 +205,15 @@ def render_excel_sheet_to_html(excel_path: Path, sheet_name: str = None) -> str:
                 bg_color = "white"
                 text_color = "#000000"
 
-                if cell.fill and cell.fill.fill_type and cell.fill.fill_type != "none":
-                    if cell.fill.start_color:
-                        bg_hex = color_to_hex(cell.fill.start_color, theme_colors)
-                        if bg_hex:
-                            bg_color = f"#{bg_hex}"
+                if (
+                    cell.fill
+                    and cell.fill.fill_type
+                    and cell.fill.fill_type != "none"
+                    and cell.fill.start_color
+                ):
+                    bg_hex = color_to_hex(cell.fill.start_color, theme_colors)
+                    if bg_hex:
+                        bg_color = f"#{bg_hex}"
 
                 if cell.font and cell.font.color:
                     text_hex = color_to_hex(cell.font.color, theme_colors)
@@ -251,7 +258,7 @@ def render_excel_sheet_to_html(excel_path: Path, sheet_name: str = None) -> str:
         err_console.print(
             f"[bold red]Error rendering Excel sheet {excel_path}:[/bold red] {e}"
         )
-        return f"<p><em>Error rendering Excel sheet: {str(e)}</em></p>"
+        return f"<p><em>Error rendering Excel sheet: {e!s}</em></p>"
 
 
 def process_excel_macros(content: str, markdown_file_path: Path) -> str:

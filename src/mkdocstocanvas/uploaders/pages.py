@@ -1,15 +1,16 @@
-from pathlib import Path
 from datetime import datetime
-import typer
+from pathlib import Path
+
 import requests
+import typer
 from rich.table import Table
 
-from ..utils import config as utils_config
 from ..api.canvas import CanvasUploader
 from ..models.page import MarkdownPage
+from ..utils import config as utils_config
 from .base import (
-    ContentUploader,
     _MD_LINK_PATTERN,
+    ContentUploader,
     console,
     delete_all_items,
     err_console,
@@ -418,10 +419,7 @@ class PageUploader(ContentUploader):
             page_exists = False
 
         # If syllabus, ignore existence check
-        if not page_exists and not self._is_syllabus_page(md_page):
-            return True  # Page was deleted from Canvas, needs re-upload
-
-        return False  # File unchanged and verified on Canvas
+        return not page_exists and not self._is_syllabus_page(md_page)
 
 
 def parse_upload_all_pages(

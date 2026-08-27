@@ -7,25 +7,26 @@ duplicating logic.
 """
 
 import re
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Literal
 
 import typer
 from rich.console import Console
 from rich.progress import (
-    Progress,
     BarColumn,
+    Progress,
     TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
 )
 from rich.table import Table
 
-from ..utils import cache as utils_cache
 from ..api.canvas import CanvasUploader
 from ..models.page import MarkdownPage, compute_file_hash
 from ..processing.markdown import process_markdown_to_html
+from ..utils import cache as utils_cache
 
 # Shared consoles — all uploaders print through these so output is consistent.
 console = Console()
@@ -91,7 +92,7 @@ def delete_all_items(
     *,
     noun: str,
     name_column: str,
-    columns: list[tuple[str, str | None]],
+    columns: list[tuple[str, Literal["left", "center", "right"] | None]],
     row_values: Callable[[dict], tuple[str, str]],
     assume_yes: bool = False,
 ) -> None:
@@ -114,7 +115,10 @@ def delete_all_items(
 
     preview = Table(show_header=True, header_style="bold yellow")
     for header, justify in columns:
-        preview.add_column(header, justify=justify)
+        if justify:
+            preview.add_column(header, justify=justify)
+        else:
+            preview.add_column(header)
     for item in items:
         preview.add_row(*row_values(item))
     console.print(preview)
@@ -123,9 +127,7 @@ def delete_all_items(
     )
 
     if not assume_yes:
-        typer.confirm(
-            f"Are you sure you want to delete ALL these {noun}s?", abort=True
-        )
+        typer.confirm(f"Are you sure you want to delete ALL these {noun}s?", abort=True)
 
     deleted = 0
     failed = 0
@@ -163,6 +165,7 @@ def delete_all_items(
 
     if failed and not deleted:
         raise typer.Exit(code=1)
+
 
 # Matches [text](path/to/page.md) and [text](path/to/page.md#anchor)
 _MD_LINK_PATTERN = re.compile(

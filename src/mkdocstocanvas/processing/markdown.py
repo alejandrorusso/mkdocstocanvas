@@ -1,11 +1,8 @@
-import re
 import markdown
-from pathlib import Path
-from typing import Dict, List, Optional
 
 from ..models.page import MarkdownPage
-from .math import robust_math_protection, restore_protected_math_content
 from .excel import process_excel_macros
+from .math import restore_protected_math_content, robust_math_protection
 
 
 def process_markdown_to_html(md_page: MarkdownPage) -> str:
@@ -211,8 +208,8 @@ def style_admonitions(html_content: str) -> str:
             f'<div class="admonition {admonition_type}" style="padding: 15px 20px; margin: 1.5em 0; border-radius: 4px; {style}">',
         )
         html_content = html_content.replace(
-            f'<p class="admonition-title">',
-            f'<p class="admonition-title" style="font-weight: 600; margin: 0 0 10px 0; font-size: 1.1em;">',
+            '<p class="admonition-title">',
+            '<p class="admonition-title" style="font-weight: 600; margin: 0 0 10px 0; font-size: 1.1em;">',
         )
 
     return html_content

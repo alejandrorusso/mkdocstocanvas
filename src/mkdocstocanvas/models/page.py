@@ -23,9 +23,9 @@ class MarkdownPage:
     def get_title(self) -> str:
         """Extract the first # header from a markdown file as the title"""
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
+            with open(self.path, encoding="utf-8") as f:
+                for raw_line in f:
+                    line = raw_line.strip()
 
                     # Check if it starts with exactly one # and a space
                     if line.startswith("# "):
@@ -42,7 +42,7 @@ class MarkdownPage:
 
     def get_content(self) -> str:
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
+            with open(self.path, encoding="utf-8") as f:
                 md_content = f.read()
         except FileNotFoundError:
             return ""

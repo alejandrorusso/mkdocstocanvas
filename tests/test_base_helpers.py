@@ -1,5 +1,6 @@
 """Tests for the shared uploader helpers (uploaders/base.py)."""
 
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,9 +18,7 @@ from mkdocstocanvas.uploaders.base import (
 def no_confirm(monkeypatch):
     """Replace the interactive confirmation with one that always says yes."""
     calls = []
-    monkeypatch.setattr(
-        typer, "confirm", lambda *a, **k: calls.append(a) or True
-    )
+    monkeypatch.setattr(typer, "confirm", lambda *a, **k: calls.append(a) or True)
     return calls
 
 
@@ -40,20 +39,20 @@ class TestRequireConnection:
 
 
 class TestDeleteAllItems:
-    items = [
+    items: ClassVar[list[dict]] = [
         {"id": 1, "name": "A"},
         {"id": 2, "name": "B"},
         {"id": 3, "name": "C"},
     ]
 
     def _kwargs(self, **overrides):
-        kwargs = dict(
-            noun="widget",
-            name_column="Widget",
-            columns=[("Widget", None), ("ID", "right")],
-            row_values=lambda w: (w["name"], str(w["id"])),
-            assume_yes=True,
-        )
+        kwargs = {
+            "noun": "widget",
+            "name_column": "Widget",
+            "columns": [("Widget", None), ("ID", "right")],
+            "row_values": lambda w: (w["name"], str(w["id"])),
+            "assume_yes": True,
+        }
         kwargs.update(overrides)
         return kwargs
 
@@ -82,7 +81,12 @@ class TestDeleteAllItems:
 
     def test_empty_list_no_delete(self, capsys):
         deleted = []
-        delete_all_items([], lambda i: deleted.append(i), **self._kwargs())
+
+        def record(item):
+            deleted.append(item)
+            return True
+
+        delete_all_items([], record, **self._kwargs())
         assert deleted == []
         assert "Nothing to delete" in capsys.readouterr().out
 
@@ -91,9 +95,7 @@ class TestDeleteAllItems:
         assert no_confirm == []
 
     def test_confirmation_asked_without_assume_yes(self, no_confirm, capsys):
-        delete_all_items(
-            self.items, lambda i: True, **self._kwargs(assume_yes=False)
-        )
+        delete_all_items(self.items, lambda i: True, **self._kwargs(assume_yes=False))
         assert len(no_confirm) == 1
         assert "widget" in no_confirm[0][0]
 

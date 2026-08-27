@@ -1,4 +1,4 @@
-.PHONY: serve serve-full pdf pdf-install-browser upload-pages upload-pages-force upload-modules upload-labs upload-all delete-pages delete-modules delete-labs delete-all rebuild test clean
+.PHONY: serve serve-full pdf pdf-install-browser upload-pages upload-pages-force upload-modules upload-labs upload-all delete-pages delete-modules delete-labs delete-all rebuild test lint format typecheck check clean
 
 # Host/port for the local dev server (override with: make serve PORT=9000)
 HOST ?= 0.0.0.0
@@ -86,6 +86,22 @@ rebuild:
 # Run the test suite
 test:
 	uv run pytest
+
+# Lint with ruff
+lint:
+	uv run ruff check
+
+# Auto-format and auto-fix lint issues
+format:
+	uv run ruff check --fix
+	uv run ruff format
+
+# Type-check with pyright
+typecheck:
+	uv run pyright
+
+# Everything CI would run
+check: lint typecheck test
 
 # Clean generated files (the upload cache .canvas_upload_state.json is kept)
 clean:

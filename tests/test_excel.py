@@ -13,6 +13,13 @@ from mkdocstocanvas.processing.excel import (
 )
 
 
+def _active_sheet(wb: Workbook):
+    """wb.active is Optional per type stubs; tests always need the sheet."""
+    ws = wb.active
+    assert ws is not None
+    return ws
+
+
 class TestApplyTint:
     def test_no_tint(self):
         assert apply_tint("FF0000", 0.0) == "FF0000"
@@ -63,7 +70,7 @@ class TestRenderExcelSheet:
 
     def test_missing_sheet_returns_error_html(self, tmp_path: Path):
         wb = Workbook()
-        wb.active["A1"] = "hi"
+        _active_sheet(wb)["A1"] = "hi"
         file = tmp_path / "book.xlsx"
         wb.save(file)
 
@@ -72,7 +79,7 @@ class TestRenderExcelSheet:
 
     def test_renders_table(self, tmp_path: Path):
         wb = Workbook()
-        ws = wb.active
+        ws = _active_sheet(wb)
         ws["A1"] = "Name"
         ws["A2"] = "Ada"
         file = tmp_path / "book.xlsx"
@@ -85,7 +92,7 @@ class TestRenderExcelSheet:
 
     def test_blank_rows_skipped(self, tmp_path: Path):
         wb = Workbook()
-        ws = wb.active
+        ws = _active_sheet(wb)
         ws["A1"] = "Header"
         ws["A3"] = "Value"  # row 2 left blank
         file = tmp_path / "book.xlsx"
@@ -98,7 +105,7 @@ class TestRenderExcelSheet:
 class TestProcessExcelMacros:
     def test_macro_replaced_with_table(self, tmp_path: Path):
         wb = Workbook()
-        wb.active["A1"] = "Cell"
+        _active_sheet(wb)["A1"] = "Cell"
         xlsx = tmp_path / "data.xlsx"
         wb.save(xlsx)
 
@@ -112,7 +119,7 @@ class TestProcessExcelMacros:
 
     def test_relative_path_resolved_from_markdown_dir(self, tmp_path: Path):
         wb = Workbook()
-        wb.active["A1"] = "X"
+        _active_sheet(wb)["A1"] = "X"
         wb.save(tmp_path / "data.xlsx")
 
         sub = tmp_path / "sub"
