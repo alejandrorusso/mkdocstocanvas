@@ -128,6 +128,20 @@ docs/
     └── images/           # Images used in content
 ```
 
+### How Labs Are Recognized
+
+A markdown file is treated as a **lab** (uploaded as a Canvas *assignment*) when both are true:
+
+- it is directly inside `docs/labs/`, and
+- its filename starts with `lab` (case-insensitive), e.g. `lab1.md`, `Lab2-intro.md`.
+
+Any other file inside `docs/labs/` (e.g. `notes.md`) is uploaded as a **regular page** and included in modules like any other page — nothing is silently skipped.
+
+Two related rules:
+
+- A top-level nav section whose name starts with "Lab" (e.g. "Labs") is **skipped when creating modules** — labs are managed as assignments, not module items.
+- `delete-labs` identifies Canvas assignments to delete primarily via the upload cache (`.canvas_upload_state.json`), falling back to the `Lab <number>` name pattern for assignments uploaded without the cache. This means labs renamed on Canvas are still found and deleted as long as they were uploaded from this machine.
+
 ## Project Structure
 
 ```

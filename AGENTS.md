@@ -44,6 +44,6 @@ cli.py (Typer commands)
 
 ## Known quirks / issues
 
-- "Is a lab" is currently defined 4 different ways (`uploaders/pages.py`, `uploaders/modules.py` ×2, `uploaders/labs.py` `_LAB_PATTERN`). They disagree on edge cases — don't add a 5th.
+- **Lab detection has exactly two rules** (consolidated; don't add more): `uploaders/labs.py::is_lab_rel_path` decides which files are labs (`labs/` dir + name starts with `lab`, case-insensitive); module *sections* are skipped by section name (`startswith("lab")` in `modules.py`, intentional). `delete-labs` matches cached assignment IDs first, `_LAB_ASSIGNMENT_PATTERN` only as fallback.
 - `utils/config.py` raises `typer.Exit` from library code (works only inside the CLI app).
 - The math protection uses `§...§` sentinels (e.g. `§UNDERSCORE§`); when touching `processing/math.py`, verify with the round-trip tests in `tests/test_math.py`.
