@@ -12,6 +12,9 @@ package-lock.json
 # Canvas upload state cache
 .canvas_upload_state.json
 
+# Build artifacts
+/dist/
+
 # Python
 __pycache__/
 *.py[cod]
