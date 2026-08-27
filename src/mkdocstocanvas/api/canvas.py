@@ -1,13 +1,28 @@
-import os
 import mimetypes
 from pathlib import Path
 import requests
-import re  # Make sure this is at the top of your file
 
 from rich.console import Console
 
 # Initialize the error console at the module level
 err_console = Console(stderr=True)
+
+# Default timeout (seconds) for every HTTP request, so a hung connection
+# can never block the CLI forever.
+DEFAULT_TIMEOUT = 30
+
+
+class _TimeoutSession(requests.Session):
+    """A requests Session that applies a default timeout to all requests."""
+
+    def __init__(self, timeout: float = DEFAULT_TIMEOUT):
+        super().__init__()
+        self.timeout = timeout
+
+    def request(self, *args, **kwargs):
+        # All HTTP verbs (get/post/put/delete) funnel through this method.
+        kwargs.setdefault("timeout", self.timeout)
+        return super().request(*args, **kwargs)
 
 
 class CanvasUploader:
@@ -17,7 +32,7 @@ class CanvasUploader:
         self.course_id = str(course_id)
 
         # 1. Setup global session for connection pooling
-        self.session = requests.Session()
+        self.session = _TimeoutSession()
 
         # 2. Set global headers (Auth and Accept ONLY)
         self.session.headers.update(
@@ -71,6 +86,11 @@ class CanvasUploader:
 
         Returns:
             A dictionary containing the page data if found, or None if it does not exist.
+
+        Raises:
+            requests.exceptions.RequestException: For any failure other than
+                "page not found" (e.g. an expired token). Must not be confused
+                with None, or callers would create duplicate pages.
         """
         # Note: Canvas API calls the identifier 'url', but it means the slug!
         url = f"{self.base_url}/api/v1/courses/{self.course_id}/pages/{page_slug}"
@@ -83,23 +103,13 @@ class CanvasUploader:
             return response.json()
 
         except requests.exceptions.HTTPError as e:
-            status_code = e.response.status_code
-            if status_code == 404:
+            if e.response.status_code == 404:
                 # 404 just means the page hasn't been created yet.
-                # This is normal, so we fail silently and return None.
+                # This is normal, so we return None.
                 return None
-            else:
-                # 401 Unauthorized or other unexpected errors
-                err_console.print(
-                    f"[bold red]HTTP Error fetching page '{page_slug}':[/bold red] {e.response.text}"
-                )
-                return None
-
-        except requests.exceptions.RequestException as e:
-            err_console.print(
-                f"[bold red]Network Error fetching page '{page_slug}':[/bold red] {str(e)}"
-            )
-            return None
+            # 401 Unauthorized or other unexpected errors must be raised,
+            # never treated as "page missing".
+            raise
 
     def create_or_update_page(
         self,

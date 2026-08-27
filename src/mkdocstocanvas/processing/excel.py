@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 from typing import Dict, Optional
 
+from rich.console import Console
+
 try:
     from openpyxl import load_workbook
     from openpyxl.styles.colors import COLOR_INDEX
@@ -9,6 +11,8 @@ try:
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
+
+err_console = Console(stderr=True)
 
 
 def apply_tint(rgb_hex: str, tint: float) -> str:
@@ -100,10 +104,15 @@ def get_theme_colors(workbook) -> Dict[int, str]:
 
                 if len(theme_colors) >= 6:
                     return theme_colors
-    except Exception:
-        pass
+    except Exception as e:
+        err_console.print(
+            f"[yellow]⚠[/yellow] Could not read theme colors, falling back to defaults: {e}"
+        )
 
     return default_theme_colors
+
+
+_color_warnings: set[str] = set()
 
 
 def color_to_hex(color_obj, theme_colors: Dict[int, str]) -> Optional[str]:
@@ -137,8 +146,12 @@ def color_to_hex(color_obj, theme_colors: Dict[int, str]) -> Optional[str]:
             if isinstance(idx_val, int) and 0 <= idx_val < len(COLOR_INDEX):
                 return COLOR_INDEX[idx_val].replace("#", "")
 
-    except Exception:
-        pass
+    except Exception as e:
+        # Called once per cell, so only warn about each distinct problem once.
+        message = f"Could not read a cell color, skipping it: {e}"
+        if message not in _color_warnings:
+            _color_warnings.add(message)
+            err_console.print(f"[yellow]⚠[/yellow] {message}")
 
     return None
 
@@ -235,6 +248,9 @@ def render_excel_sheet_to_html(excel_path: Path, sheet_name: str = None) -> str:
         return "".join(html_parts)
 
     except Exception as e:
+        err_console.print(
+            f"[bold red]Error rendering Excel sheet {excel_path}:[/bold red] {e}"
+        )
         return f"<p><em>Error rendering Excel sheet: {str(e)}</em></p>"
 
 

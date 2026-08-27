@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 import typer
+import requests
 from rich.console import Console
 from rich.progress import (
     Progress,
@@ -431,12 +432,15 @@ class PageUploader(ContentUploader):
         if not page_url_slug:
             return True  # It has metadata, but no Canvas slug! Force upload.
 
-        # Check Canvas page existence
-        if (
-            not self.client.get_existing_page(page_url_slug)
-            # If syllabus, ignore existence check
-            and not self._is_syllabus_page(md_page)
-        ):
+        # Check Canvas page existence. A failed lookup (e.g. network hiccup)
+        # just forces a re-upload attempt, where any real error is reported.
+        try:
+            page_exists = bool(self.client.get_existing_page(page_url_slug))
+        except requests.exceptions.RequestException:
+            page_exists = False
+
+        # If syllabus, ignore existence check
+        if not page_exists and not self._is_syllabus_page(md_page):
             return True  # Page was deleted from Canvas, needs re-upload
 
         return False  # File unchanged and verified on Canvas

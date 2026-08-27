@@ -245,10 +245,9 @@ class ModuleUploader:
         try:
             canvas_file_url = self.client.upload_file(pdf_path, "/module_pdfs")
         except Exception as exc:
-            if self.verbose:
-                console.print(
-                    f"    [yellow]⚠[/yellow] PDF upload failed for {pdf_path.name}: {exc}"
-                )
+            console.print(
+                f"    [yellow]⚠[/yellow] PDF upload failed for {pdf_path.name}: {exc}"
+            )
             return
 
         file_id = self._extract_file_id(canvas_file_url)
