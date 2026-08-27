@@ -14,7 +14,7 @@ from .uploaders.labs import upload_all_labs, delete_all_labs
 
 app = typer.Typer(
     pretty_exceptions_short=False,
-    pretty_exceptions_show_locals=True,
+    pretty_exceptions_show_locals=False,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
