@@ -1,4 +1,5 @@
 import mimetypes
+import re
 from pathlib import Path
 import requests
 

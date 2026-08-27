@@ -37,3 +37,8 @@ packages = ["src/mkdocstocanvas"]
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

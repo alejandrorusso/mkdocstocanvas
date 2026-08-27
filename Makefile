@@ -1,4 +1,8 @@
-.PHONY: serve serve-full pdf delete-pages delete-modules delete-labs upload-pages upload-pages-force upload-modules upload-labs clean
+.PHONY: serve serve-full pdf delete-pages delete-modules delete-labs upload-pages upload-pages-force upload-modules upload-labs test clean
+
+# Run the test suite
+test:
+	uv run pytest
 
 # Serve the documentation locally (fast mode - better live reload)
 serve:

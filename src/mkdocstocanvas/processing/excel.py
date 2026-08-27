@@ -74,7 +74,7 @@ def get_theme_colors(workbook) -> Dict[int, str]:
             ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
             color_scheme = root.find(".//a:clrScheme", ns)
 
-            if color_scheme:
+            if color_scheme is not None:
                 theme_colors = {}
                 color_map = {
                     "a:lt1": 0,
@@ -91,7 +91,7 @@ def get_theme_colors(workbook) -> Dict[int, str]:
 
                 for color_name, index in color_map.items():
                     color_elem = color_scheme.find(color_name, ns)
-                    if color_elem:
+                    if color_elem is not None:
                         srgb = color_elem.find(".//a:srgbClr", ns)
                         if srgb is not None and "val" in srgb.attrib:
                             theme_colors[index] = srgb.attrib["val"]
