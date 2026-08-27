@@ -1,4 +1,4 @@
-.PHONY: serve serve-full pdf upload-pages upload-pages-force upload-modules upload-labs upload-all delete-pages delete-modules delete-labs delete-all rebuild test clean
+.PHONY: serve serve-full pdf pdf-install-browser upload-pages upload-pages-force upload-modules upload-labs upload-all delete-pages delete-modules delete-labs delete-all rebuild test clean
 
 # Host/port for the local dev server (override with: make serve PORT=9000)
 HOST ?= 0.0.0.0
@@ -25,6 +25,10 @@ serve-full:
 # Build site and collect generated PDFs into pdf/
 pdf:
 	@$(call canvas,pdf)
+
+# Install the Playwright browser needed for PDF generation (run once)
+pdf-install-browser:
+	@$(call canvas,pdf --install-browser)
 
 # ---------------------------------------------------------------
 # Upload to Canvas
