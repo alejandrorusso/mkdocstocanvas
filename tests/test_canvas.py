@@ -75,8 +75,9 @@ class TestCreateOrUpdatePage:
     def test_slug_generated_from_title(self, uploader):
         uploader.session.get.return_value = _ok_response({"url": "my-cool-page"})
         uploader.session.put.return_value = _ok_response({"url": "my-cool-page"})
-        url = uploader.create_or_update_page("My Cool Page!", "body")
+        url, slug = uploader.create_or_update_page("My Cool Page!", "body")
         assert url == "https://canvas.example.com/courses/123/pages/my-cool-page"
+        assert slug == "my-cool-page"
         put_url = uploader.session.put.call_args.args[0]
         assert put_url.endswith("/pages/my-cool-page")
 
@@ -94,11 +95,12 @@ class TestCreateOrUpdatePage:
         uploader.list_pages = MagicMock(return_value=[])
         uploader.session.post.return_value = _ok_response({"url": "brand-new"})
 
-        url = uploader.create_or_update_page("Brand New", "body")
+        url, slug = uploader.create_or_update_page("Brand New", "body")
 
         uploader.session.post.assert_called_once()
         uploader.session.put.assert_not_called()
         assert url == "https://canvas.example.com/courses/123/pages/brand-new"
+        assert slug == "brand-new"
 
     def test_post_failure_returns_none(self, uploader):
         missing = MagicMock()
@@ -110,3 +112,10 @@ class TestCreateOrUpdatePage:
         uploader.session.post.return_value = failed
 
         assert uploader.create_or_update_page("Brand New", "body") is None
+
+    def test_slug_taken_from_response_not_generated(self, uploader):
+        # Canvas can normalize slugs differently than we generate them
+        uploader.session.get.return_value = _ok_response({"url": "canvas-slug"})
+        uploader.session.put.return_value = _ok_response({"url": "canvas-slug"})
+        _, slug = uploader.create_or_update_page("My Title", "body")
+        assert slug == "canvas-slug"

@@ -118,13 +118,14 @@ class CanvasUploader:
         html_content: str,
         published: bool = True,
         page_slug: str | None = None,
-    ) -> str | None:
+    ) -> tuple[str, str] | None:
         """
         Creates a new Wiki Page in Canvas or updates it if it already exists.
-        Returns the Canvas URL of the created/updated page.
 
         Returns:
-            URL of the new canvas page if successful. Otherwise None.
+            (Canvas URL, page slug) of the saved page if successful, else None.
+            The slug is taken from the API response, so callers never have to
+            parse it out of the URL.
         """
         # 1. Generate a Canvas-safe URL slug if one isn't provided
         if not page_slug:
@@ -168,7 +169,8 @@ class CanvasUploader:
 
             # 4. Construct and return the final user-facing Canvas URL
             final_slug = result.get("url", page_slug)
-            return f"{self.base_url}/courses/{self.course_id}/pages/{final_slug}"
+            canvas_url = f"{self.base_url}/courses/{self.course_id}/pages/{final_slug}"
+            return canvas_url, final_slug
 
         except requests.exceptions.HTTPError as e:
             err_console.print(
@@ -228,8 +230,14 @@ class CanvasUploader:
         canvas_data = response.json()
 
         # --- STEP 2: Upload the actual bytes to the provided URL ---
-        upload_url = canvas_data["upload_url"]
-        upload_params = canvas_data["upload_params"]
+        upload_url = canvas_data.get("upload_url")
+        upload_params = canvas_data.get("upload_params")
+        if not upload_url:
+            # Don't KeyError on an unexpected Canvas response shape
+            raise ValueError(
+                f"Canvas did not return an upload URL for {file.name}. "
+                f"Response was: {canvas_data}"
+            )
 
         with open(file, "rb") as f:
             # We pass files={"file": f}. The requests library automatically
@@ -258,34 +266,40 @@ class CanvasUploader:
         file_id = final_data.get("id")
         return f"{self.base_url}/courses/{self.course_id}/files/{file_id}?wrap=1"
 
+    def _paginated_get(self, first_url: str, params: dict) -> list[dict]:
+        """
+        GET all pages of a paginated Canvas endpoint, following the Link header.
+
+        Raises requests.exceptions.RequestException on any failure - callers
+        must not receive a silently truncated list.
+        """
+        items: list[dict] = []
+        url: str | None = first_url
+        params = dict(params)
+
+        while url:
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            items.extend(response.json())
+            # Follow Canvas Link header pagination
+            url = None
+            for part in response.headers.get("Link", "").split(","):
+                if 'rel="next"' in part:
+                    url = part.split(";")[0].strip().strip("<>")
+                    break
+            params = {}  # params are already baked into the next URL
+
+        return items
+
     def list_pages(self) -> list[dict]:
         """
         Returns all wiki pages in the course (title + url slug).
         Handles Canvas pagination automatically.
         """
-        pages: list[dict] = []
-        url = f"{self.base_url}/api/v1/courses/{self.course_id}/pages"
-        params: dict = {"per_page": 100}
-
-        while url:
-            try:
-                response = self.session.get(url, params=params)
-                response.raise_for_status()
-                pages.extend(response.json())
-                # Follow Canvas Link header pagination
-                next_url = None
-                link_header = response.headers.get("Link", "")
-                for part in link_header.split(","):
-                    if 'rel="next"' in part:
-                        next_url = part.split(";")[0].strip().strip("<>")
-                        break
-                url = next_url
-                params = {}  # params are already baked into the next URL
-            except requests.exceptions.RequestException as e:
-                err_console.print(f"[bold red]Error listing pages:[/bold red] {e}")
-                break
-
-        return pages
+        return self._paginated_get(
+            f"{self.base_url}/api/v1/courses/{self.course_id}/pages",
+            {"per_page": 100},
+        )
 
     def delete_page(self, page_slug: str) -> bool:
         """
@@ -309,24 +323,10 @@ class CanvasUploader:
 
     def list_modules(self) -> list[dict]:
         """Returns all modules in the course (handles pagination)."""
-        modules: list[dict] = []
-        url = f"{self.base_url}/api/v1/courses/{self.course_id}/modules"
-        params: dict = {"per_page": 100}
-        while url:
-            try:
-                response = self.session.get(url, params=params)
-                response.raise_for_status()
-                modules.extend(response.json())
-                url = None
-                for part in response.headers.get("Link", "").split(","):
-                    if 'rel="next"' in part:
-                        url = part.split(";")[0].strip().strip("<>")
-                        break
-                params = {}
-            except requests.exceptions.RequestException as e:
-                err_console.print(f"[bold red]Error listing modules:[/bold red] {e}")
-                break
-        return modules
+        return self._paginated_get(
+            f"{self.base_url}/api/v1/courses/{self.course_id}/modules",
+            {"per_page": 100},
+        )
 
     def create_module(self, name: str, position: int) -> dict | None:
         """Creates a new unpublished module. Returns the module dict or None."""
@@ -414,10 +414,12 @@ class CanvasUploader:
             items = self.session.get(f"{base}/items", params={"per_page": 100})
             items.raise_for_status()
             for item in items.json():
-                self.session.put(
+                put = self.session.put(
                     f"{base}/items/{item['id']}",
                     json={"module_item": {"published": True}},
                 )
+                # Unchecked item publishes would silently stay unpublished.
+                put.raise_for_status()
             resp = self.session.put(base, json={"module": {"published": True}})
             resp.raise_for_status()
             return True
@@ -480,26 +482,10 @@ class CanvasUploader:
 
     def list_assignments(self) -> list[dict]:
         """Returns all assignments in the course (handles pagination)."""
-        assignments: list[dict] = []
-        url = f"{self.base_url}/api/v1/courses/{self.course_id}/assignments"
-        params: dict = {"per_page": 100}
-        while url:
-            try:
-                response = self.session.get(url, params=params)
-                response.raise_for_status()
-                assignments.extend(response.json())
-                url = None
-                for part in response.headers.get("Link", "").split(","):
-                    if 'rel="next"' in part:
-                        url = part.split(";")[0].strip().strip("<>")
-                        break
-                params = {}
-            except requests.exceptions.RequestException as e:
-                err_console.print(
-                    f"[bold red]Error listing assignments:[/bold red] {e}"
-                )
-                break
-        return assignments
+        return self._paginated_get(
+            f"{self.base_url}/api/v1/courses/{self.course_id}/assignments",
+            {"per_page": 100},
+        )
 
     def create_or_update_assignment(
         self,

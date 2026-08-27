@@ -17,6 +17,7 @@ from .base import (
     make_progress,
     require_connection,
 )
+from .labs import is_lab_rel_path
 
 
 class PageUploader(ContentUploader):
@@ -87,8 +88,8 @@ class PageUploader(ContentUploader):
                     description=f"[cyan]Uploading [bold]{page.title or rel}[/bold]...",
                 )
                 try:
-                    canvas_url = self._upload_page(page)
-                    self._update_page_cache(rel, page, canvas_url)
+                    canvas_url, page_url_slug = self._upload_page(page)
+                    self._update_page_cache(rel, page, canvas_url, page_url_slug)
                     uploaded_rels.add(rel)
                     upload_order[rel] = upload_seq
                     upload_seq += 1
@@ -172,8 +173,8 @@ class PageUploader(ContentUploader):
                         description=f"[cyan]Re-uploading [bold]{page.title or rel}[/bold]...",
                     )
                     try:
-                        canvas_url = self._upload_page(page)
-                        self._update_page_cache(rel, page, canvas_url)
+                        canvas_url, page_url_slug = self._upload_page(page)
+                        self._update_page_cache(rel, page, canvas_url, page_url_slug)
                         upload_results.append(
                             {
                                 "title": page.title or rel,
@@ -238,9 +239,10 @@ class PageUploader(ContentUploader):
             f"[red]Failed: {errors}[/red]"
         )
 
-    def _update_page_cache(self, rel: str, page: MarkdownPage, canvas_url: str) -> None:
+    def _update_page_cache(
+        self, rel: str, page: MarkdownPage, canvas_url: str, page_url_slug: str
+    ) -> None:
         """Write a page's upload result into pages_cache, preserving mentioned_by."""
-        page_url_slug = canvas_url.split("/pages/")[-1]
         existing = self.pages_cache.get(rel, {})
         resolved_md_links = self._snapshot_resolved_md_links(page)
         self.pages_cache[rel] = {
@@ -323,11 +325,11 @@ class PageUploader(ContentUploader):
                 if page_rel not in mentioned_by:
                     mentioned_by.append(page_rel)
 
-    def _upload_page(self, md_page: MarkdownPage) -> str:
+    def _upload_page(self, md_page: MarkdownPage) -> tuple[str, str]:
         """
         Uploads page to canvas.
 
-        Returns the Canvas URL
+        Returns (Canvas URL, page slug).
         """
         html_page = self._prepare_content(md_page)
 
@@ -335,14 +337,22 @@ class PageUploader(ContentUploader):
         url_slug = info.get("page_url_slug") if info else None
 
         if self._is_syllabus_page(md_page):
-            return self.client.upload_syllabus(html_page)  # pyright: ignore
+            syllabus_url = self.client.upload_syllabus(html_page)
+            if syllabus_url is None:
+                # upload_syllabus already printed the API error
+                raise RuntimeError(f"Failed to upload syllabus {md_page.path}")
+            return syllabus_url, "syllabus"
 
-        return self.client.create_or_update_page(
-            md_page.title,  # pyright: ignore
+        result = self.client.create_or_update_page(
+            md_page.title,
             html_page,
             published=True,
-            page_slug=url_slug,  # pyright: ignore
+            page_slug=url_slug,
         )
+        if result is None:
+            # create_or_update_page already printed the API error
+            raise RuntimeError(f"Failed to save page {md_page.path}")
+        return result
 
     def _pages_to_upload(self, pages: list[MarkdownPage]) -> list[MarkdownPage]:
         """
@@ -353,18 +363,14 @@ class PageUploader(ContentUploader):
         """
         pages_to_upload = []
         for md_page in pages:  # pyright: ignore
-            if md_page.path.parent.name == "labs":
+            # Labs are uploaded as Canvas assignments, not pages. Other files
+            # under labs/ are regular pages (see labs.is_lab_rel_path).
+            if is_lab_rel_path(md_page.rel_path):
                 continue
 
             if not md_page.path.exists():
                 console.print(
                     f"⚠ Skipping {md_page.path}: file not found", style="bold yellow"
-                )
-                continue
-
-            if md_page.title is None:
-                console.print(
-                    f"⚠ Skipping {md_page.path}: no title found", style="bold yellow"
                 )
                 continue
 
@@ -473,7 +479,11 @@ def delete_all_pages(client: CanvasUploader, force: bool = False) -> None:
     require_connection(client)
 
     console.print("Fetching pages...")
-    pages = client.list_pages()
+    try:
+        pages = client.list_pages()
+    except requests.exceptions.RequestException as e:
+        err_console.print(f"[bold red]Error listing pages:[/bold red] {e}")
+        raise typer.Exit(1) from e
 
     delete_all_items(
         pages,

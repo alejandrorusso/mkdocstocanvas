@@ -1,9 +1,11 @@
 import re
 from pathlib import Path
 
+import requests
 import typer
 
 from ..api.canvas import CanvasUploader
+from ..models.page import extract_title_text
 from ..utils import config as utils_config
 from .base import (
     console,
@@ -13,6 +15,7 @@ from .base import (
     print_results_summary,
     require_connection,
 )
+from .labs import is_lab_rel_path
 
 
 class ModuleUploader:
@@ -46,7 +49,11 @@ class ModuleUploader:
 
         # Fetch all Canvas pages once for link resolution
         console.print("Fetching Canvas pages for link resolution...")
-        canvas_pages = self.client.list_pages()
+        try:
+            canvas_pages = self.client.list_pages()
+        except requests.exceptions.RequestException as e:
+            err_console.print(f"[bold red]Error listing pages:[/bold red] {e}")
+            raise typer.Exit(1) from e
         pages_by_title = {p["title"]: p for p in canvas_pages}
         if self.verbose:
             console.print(f"[dim]Found {len(canvas_pages)} Canvas page(s).[/dim]")
@@ -56,7 +63,11 @@ class ModuleUploader:
                 )
 
         # Delete existing modules
-        existing = self.client.list_modules()
+        try:
+            existing = self.client.list_modules()
+        except requests.exceptions.RequestException as e:
+            err_console.print(f"[bold red]Error listing modules:[/bold red] {e}")
+            raise typer.Exit(1) from e
         if existing:
             console.print(f"Deleting {len(existing)} existing module(s)...")
             with make_progress() as progress:
@@ -69,7 +80,10 @@ class ModuleUploader:
                     self.client.delete_module(m["id"])
                     progress.advance(del_task)
 
-        # Skip lab and syllabus sections
+        # Skip lab and syllabus sections. Lab sections are matched by NAME
+        # (intentionally different from file-level lab detection): labs are
+        # Canvas assignments, not module items, so a whole "Lab ..." nav
+        # section never becomes a module.
         to_upload: list[dict] = []
         skipped_labs = 0
         skipped_syllabus_sections = 0
@@ -128,10 +142,12 @@ class ModuleUploader:
         added = 0
         position = 1
         for md_path in pages:
-            md_rel = Path(md_path).as_posix()
-            if md_path.startswith("labs/"):
+            # Labs become Canvas assignments, not module items (see
+            # labs.is_lab_rel_path). Files under labs/ that are not labs
+            # are added like any other page.
+            if is_lab_rel_path(md_path):
                 continue
-            if self.syllabus_rel_path and md_rel == self.syllabus_rel_path:
+            if self.syllabus_rel_path and Path(md_path).as_posix() == self.syllabus_rel_path:
                 if self.verbose:
                     console.print(
                         f"    [dim]Skipping syllabus page in module: {md_path}[/dim]"
@@ -146,7 +162,10 @@ class ModuleUploader:
                     )
                 continue
 
-            title = self._extract_title(full_path)
+            try:
+                title = extract_title_text(full_path)
+            except (OSError, UnicodeDecodeError):
+                title = None
             if not title:
                 if self.verbose:
                     console.print(
@@ -247,17 +266,6 @@ class ModuleUploader:
                 return page
         return None
 
-    def _extract_title(self, path: Path) -> str | None:
-        """Extract the first # heading from a markdown file."""
-        try:
-            for raw_line in path.read_text(encoding="utf-8").splitlines():
-                line = raw_line.strip()
-                if re.match(r"^#\s+", line):
-                    return re.sub(r"^#\s+", "", line).strip()
-        except OSError:
-            pass
-        return None
-
     def _print_summary(self, results: list[dict]) -> None:
         print_results_summary(
             "Module Upload Summary",
@@ -305,7 +313,11 @@ def delete_all_modules(client: CanvasUploader, force: bool = False) -> None:
     """Delete all modules from the Canvas course."""
     require_connection(client)
 
-    modules = client.list_modules()
+    try:
+        modules = client.list_modules()
+    except requests.exceptions.RequestException as e:
+        err_console.print(f"[bold red]Error listing modules:[/bold red] {e}")
+        raise typer.Exit(1) from e
 
     delete_all_items(
         modules,

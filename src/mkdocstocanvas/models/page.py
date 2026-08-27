@@ -7,6 +7,22 @@ from rich.console import Console
 err_console = Console(stderr=True, style="bold red")
 
 
+def extract_title_text(path: Path) -> str | None:
+    """
+    First "# " heading of a markdown file, or None if there is none.
+
+    Raises OSError / UnicodeDecodeError if the file cannot be read.
+    Shared by MarkdownPage and the module uploader so both use the same
+    title rule.
+    """
+    with open(path, encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if line.startswith("# "):
+                return line[2:].strip()
+    return None
+
+
 class MarkdownPage:
     def __init__(self, path: Path, root_path: Path = Path("docs")):
         # Path that also contains the root path.
@@ -23,22 +39,17 @@ class MarkdownPage:
     def get_title(self) -> str:
         """Extract the first # header from a markdown file as the title"""
         try:
-            with open(self.path, encoding="utf-8") as f:
-                for raw_line in f:
-                    line = raw_line.strip()
-
-                    # Check if it starts with exactly one # and a space
-                    if line.startswith("# "):
-                        return line[2:].strip()
-        except OSError as e:
+            title = extract_title_text(self.path)
+        except (OSError, UnicodeDecodeError) as e:
             err_console.print(f"⚠ Error reading file {self.path}: {e}")
-        except UnicodeDecodeError as e:
-            err_console.print(f"⚠ Encoding error in {self.path}: {e}")
+            return self.path.stem
 
-        err_console.print(
-            f"Couldn't find title in {self.path}. Make sure that the file contains a level 1 heading."
-        )
-        return self.path.stem
+        if title is None:
+            err_console.print(
+                f"Couldn't find title in {self.path}. Make sure that the file contains a level 1 heading."
+            )
+            return self.path.stem
+        return title
 
     def get_content(self) -> str:
         try:
