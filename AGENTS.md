@@ -30,10 +30,18 @@ cli.py (Typer commands)
                        excel.py {{ render_excel_sheet(...) }} macro
   → models/page.py     MarkdownPage (title/content/md5)
   → utils/cache.py     .canvas_upload_state.json (gitignored, atomic writes)
+  → utils/marker.py    ownership marker (make/parse)
 ```
 
-- Incremental uploads are driven by `.canvas_upload_state.json` (MD5 + Canvas slug per file). Delete it to force a full re-upload.
+- Incremental uploads are driven by `.canvas_upload_state.json` (MD5 + Canvas slug per file). Delete it to force a full re-upload — or better, `mkdocstocanvas rebuild-cache` / let the auto-rebuild recover it from Canvas markers.
 - Internal `.md` links and images are rewritten to Canvas URLs during `_prepare_content` — the cache must be in sync or links break.
+
+## Ownership markers & scoped deletes (important contract)
+
+- Every page/lab/syllabus body gets an invisible marker `<span class="mkdocstocanvas-marker" data-rel="…" data-md5="…"></span>` (prepended in `ContentUploader._prepare_content`). Canvas **strips HTML comments** from page bodies, so a comment cannot be used — data attributes on a span survive. Changing the marker format breaks `rebuild-cache` and scoped deletes — update both sides together; old-format markers are simply not recognized (a full re-upload re-stamps them).
+- `delete-pages` / `delete-modules` are **managed-only** by default (marker or cache/nav-section match); `--all` deletes everything. Don't "simplify" this back to delete-all.
+- Modules have no body to carry a marker: they are matched by cached `canvas_module_id` (stored under the cache's `modules` key) or by exact nav-section name.
+- Assets are deduplicated against Canvas files by content hash, falling back to filename+size (`find_existing_file`, lazily indexed per client; Canvas does not report md5 for course files) — **regardless of `--force`**. `--force` only skips the page-level cache and the local asset cache entry; it can never create duplicate files.
 
 ## Conventions that differ from defaults
 

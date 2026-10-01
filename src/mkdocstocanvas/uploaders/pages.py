@@ -15,6 +15,7 @@ from .base import (
     delete_all_items,
     err_console,
     make_progress,
+    parse_marker,
     require_connection,
 )
 from .labs import is_lab_rel_path
@@ -46,6 +47,10 @@ class PageUploader(ContentUploader):
         Uploads all pages to canvas.
         """
         require_connection(self.client)
+
+        # If the cache is gone (deleted, new machine), recover it from the
+        # ownership markers on Canvas instead of re-uploading everything.
+        self._rebuild_cache_if_empty()
 
         # Build/refresh the mentioned_by index before uploading anything
         self._collect_mentions(pages)
@@ -469,21 +474,35 @@ def parse_upload_all_pages(
     uploader.upload_all_pages(markdown_pages)
 
 
-def delete_all_pages(client: CanvasUploader, force: bool = False) -> None:
+def delete_all_pages(
+    client: CanvasUploader, force: bool = False, all_items: bool = False
+) -> None:
     """
-    Deletes all pages from the Canvas course.
+    Deletes pages from the Canvas course.
 
-    Lists pages, asks for confirmation (unless force=True), deletes with a
-    progress bar, and prints a rich summary table.
+    By default only pages created by this tool are deleted (identified by
+    the ownership marker in their body). Pass all_items=True (--all) to
+    delete every page in the course.
     """
     require_connection(client)
 
     console.print("Fetching pages...")
     try:
-        pages = client.list_pages()
+        # Page bodies are only needed for the ownership check
+        pages = client.list_pages(include_body=not all_items)
     except requests.exceptions.RequestException as e:
         err_console.print(f"[bold red]Error listing pages:[/bold red] {e}")
         raise typer.Exit(1) from e
+
+    if not all_items:
+        managed = [p for p in pages if parse_marker(p.get("body") or "")]
+        skipped = len(pages) - len(managed)
+        if skipped:
+            console.print(
+                f"[yellow]{skipped} page(s) without an mkdocstocanvas marker "
+                "will be kept. Use --all to include them.[/yellow]"
+            )
+        pages = managed
 
     delete_all_items(
         pages,

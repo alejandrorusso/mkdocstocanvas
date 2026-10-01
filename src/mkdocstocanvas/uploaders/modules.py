@@ -8,6 +8,7 @@ from ..api.canvas import CanvasUploader
 from ..models.page import extract_title_text
 from ..utils import config as utils_config
 from .base import (
+    ContentUploader,
     console,
     delete_all_items,
     err_console,
@@ -18,17 +19,18 @@ from .base import (
 from .labs import is_lab_rel_path
 
 
-class ModuleUploader:
+class ModuleUploader(ContentUploader):
     def __init__(
         self,
         client: CanvasUploader,
         docs_root: Path = Path("docs"),
         pdf_root: Path = Path("pdf"),
+        cache: str = ".canvas_upload_state.json",
         add_pdf: bool = False,
         verbose: bool = False,
         syllabus_rel_path: str | None = None,
     ):
-        self.client = client
+        super().__init__(client=client, cache=cache)
         self.docs_root = docs_root
         self.pdf_root = pdf_root
         self.add_pdf = add_pdf
@@ -38,12 +40,34 @@ class ModuleUploader:
         )
         self.pdf_by_stem = self._index_pdfs() if add_pdf else {}
 
+    def _managed_modules(
+        self, modules: list[dict], section_names: set[str]
+    ) -> list[dict]:
+        """
+        Filter a module list down to modules this tool manages.
+
+        A module is managed when its ID is in the upload cache (recorded at
+        upload time) or its name matches a nav section from mkdocs.yml.
+        Manually created modules (quizzes etc.) are never matched.
+        """
+        cached_ids = {
+            info.get("canvas_module_id")
+            for info in self.modules_cache.values()
+            if isinstance(info, dict)
+        }
+        return [
+            m
+            for m in modules
+            if m.get("id") in cached_ids or m.get("name") in section_names
+        ]
+
     def upload_all(self, sections: list[dict]) -> None:
         """
         Upload all sections as Canvas modules.
 
-        Deletes existing modules first, then creates one module per section,
-        linking the matching Canvas pages inside each one.
+        Deletes previously uploaded modules first (leaving manually created
+        ones alone), then creates one module per section, linking the
+        matching Canvas pages inside each one.
         """
         require_connection(self.client)
 
@@ -62,17 +86,26 @@ class ModuleUploader:
                     f"[dim]Found {len(self.pdf_by_stem)} PDF file(s) in {self.pdf_root}/.[/dim]"
                 )
 
-        # Delete existing modules
+        # Delete existing modules created by this tool. Modules are matched
+        # by cached ID or by nav-section name; anything else in the course
+        # (e.g. manually created quiz modules) is left alone.
+        section_names = {s["name"] for s in sections}
         try:
             existing = self.client.list_modules()
         except requests.exceptions.RequestException as e:
             err_console.print(f"[bold red]Error listing modules:[/bold red] {e}")
             raise typer.Exit(1) from e
-        if existing:
-            console.print(f"Deleting {len(existing)} existing module(s)...")
+        managed = self._managed_modules(existing, section_names)
+        if len(managed) < len(existing):
+            console.print(
+                f"[dim]{len(existing) - len(managed)} module(s) not created by "
+                "mkdocstocanvas will be left untouched.[/dim]"
+            )
+        if managed:
+            console.print(f"Deleting {len(managed)} existing module(s)...")
             with make_progress() as progress:
-                del_task = progress.add_task("[red]Deleting...", total=len(existing))
-                for m in existing:
+                del_task = progress.add_task("[red]Deleting...", total=len(managed))
+                for m in managed:
                     progress.update(
                         del_task,
                         description=f"[red]Deleting [bold]{m['name']}[/bold]...",
@@ -120,6 +153,10 @@ class ModuleUploader:
                     progress.advance(task)
                     continue
 
+                self.modules_cache[name] = {
+                    "canvas_module_id": module["id"],
+                    "name": name,
+                }
                 pages_added = self._add_pages_to_module(
                     module["id"], section["pages"], pages_by_title
                 )
@@ -130,6 +167,7 @@ class ModuleUploader:
                 results.append({"name": name, "pages": pages_added, "status": "ok"})
                 progress.advance(task)
 
+        self._save_cache()
         self._print_summary(results)
 
     def _add_pages_to_module(
@@ -309,8 +347,29 @@ def upload_all_modules(
     uploader.upload_all(sections)
 
 
-def delete_all_modules(client: CanvasUploader, force: bool = False) -> None:
-    """Delete all modules from the Canvas course."""
+def _section_names_from_mkdocs() -> set[str]:
+    """Nav section names from mkdocs.yml, for module-ownership matching.
+
+    Returns an empty set when mkdocs.yml is missing or unreadable; deleting
+    then relies on the upload cache alone.
+    """
+    try:
+        sections = utils_config.parse_mkdocs_nav_sections(Path("mkdocs.yml"))
+    except typer.Exit:
+        return set()
+    return {s["name"] for s in sections or []}
+
+
+def delete_all_modules(
+    client: CanvasUploader, force: bool = False, all_items: bool = False
+) -> None:
+    """
+    Delete modules from the Canvas course.
+
+    By default only modules created by this tool are deleted (matched by
+    upload cache or nav-section name). Pass all_items=True (--all) to
+    delete every module in the course.
+    """
     require_connection(client)
 
     try:
@@ -318,6 +377,18 @@ def delete_all_modules(client: CanvasUploader, force: bool = False) -> None:
     except requests.exceptions.RequestException as e:
         err_console.print(f"[bold red]Error listing modules:[/bold red] {e}")
         raise typer.Exit(1) from e
+
+    if not all_items:
+        managed = ModuleUploader(client)._managed_modules(
+            modules, _section_names_from_mkdocs()
+        )
+        skipped = len(modules) - len(managed)
+        if skipped:
+            console.print(
+                f"[yellow]{skipped} module(s) not created by mkdocstocanvas "
+                "will be kept. Use --all to include them.[/yellow]"
+            )
+        modules = managed
 
     delete_all_items(
         modules,

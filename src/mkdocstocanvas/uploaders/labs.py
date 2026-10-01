@@ -55,6 +55,9 @@ class LabUploader(ContentUploader):
 
     def upload_all(self, lab_files: list[Path]) -> None:
         """Convert each lab markdown file to HTML and upload as a Canvas assignment."""
+        # Recover the cache from Canvas if it is missing (same as pages)
+        self._rebuild_cache_if_empty()
+
         results: list[dict] = []
 
         with make_progress() as progress:

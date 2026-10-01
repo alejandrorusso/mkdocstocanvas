@@ -10,6 +10,7 @@ A complete system for publishing MkDocs-based course content to Canvas LMS, with
 - 🚀 **Incremental Updates**: Smart caching system only uploads changed files
 - 🔄 **Page URL Preservation**: Updates existing Canvas pages without creating duplicates
 - 🧪 **Lab Management**: Separate workflow for managing lab assignments
+- 🛡️ **Safe Deletion & Cache Recovery**: Uploaded content carries an invisible ownership marker; deletes only touch tool-managed content, and the cache can be rebuilt from Canvas at any time
 - 📊 **Excel Sheet Rendering**: Embed Excel spreadsheets with full color preservation
 - 🎨 **Rich Content**: Full support for:
   - Mathematical formulas (LaTeX/MathJax)
@@ -256,15 +257,17 @@ mkdocstocanvas upload-all
 
 ### Deleting Content
 
-**⚠️ Warning**: These commands permanently delete content from Canvas! They ask for confirmation first.
+**⚠️ Warning**: These commands permanently delete content from Canvas!
 
-Delete all modules (keeps pages):
+By default, the delete commands only remove content that was **uploaded by mkdocstocanvas**. Every page, lab and module the tool creates carries an invisible ownership marker, so anything you created manually in Canvas (quizzes, pages, modules) is left untouched. Add `--all` if you really want to delete everything of that type.
+
+Delete the modules uploaded by the tool (keeps pages and manually created modules):
 
 ```bash
 mkdocstocanvas delete-modules
 ```
 
-Delete all pages:
+Delete all pages uploaded by the tool:
 
 ```bash
 mkdocstocanvas delete-pages
@@ -276,11 +279,29 @@ Delete all lab assignments:
 mkdocstocanvas delete-labs
 ```
 
-Delete everything:
+Delete everything uploaded by the tool:
 
 ```bash
 mkdocstocanvas delete-all
 ```
+
+Delete **everything** of a type, including manually created content:
+
+```bash
+mkdocstocanvas delete-pages --all
+mkdocstocanvas delete-modules --all
+mkdocstocanvas delete-all --all
+```
+
+### Recovering a Lost Cache
+
+The upload cache `.canvas_upload_state.json` tracks what has been uploaded. If it is lost or deleted (new machine, cleaned repo), you do **not** need to re-upload everything:
+
+```bash
+mkdocstocanvas rebuild-cache
+```
+
+This matches pages, labs and the syllabus back to local files via their ownership markers, and assets via content hashes. The command also runs automatically at the start of `upload-pages` / `upload-labs` whenever the cache is empty, so losing the cache never causes duplicate pages or files.
 
 ### Cleaning Local Files
 
@@ -337,10 +358,30 @@ The page upload system uses intelligent caching to only upload changed files:
 
 **Force Upload:**
 ```bash
-mkdocstocanvas upload-pages --force    # Ignores cache, uploads everything
+mkdocstocanvas upload-pages --force    # Re-uploads pages even if the cache is unchanged
 # OR manually:
 rm .canvas_upload_state.json && mkdocstocanvas upload-pages
 ```
+
+`--force` re-uploads page bodies even when the cache considers them unchanged (useful to overwrite manual edits made in Canvas). It does **not** duplicate assets — images and files are always deduplicated against Canvas by content hash.
+
+### Ownership Markers and Safe Deletes
+
+Every page, lab assignment and the syllabus uploaded by the tool carries an invisible marker element at the top of its body:
+
+```html
+<span class="mkdocstocanvas-marker" data-rel="lectures/01-intro.md" data-md5="ab12cd…"></span>
+```
+
+(Canvas strips HTML comments from page bodies, so a plain comment cannot be used; data attributes on a span survive.)
+
+This marker identifies the content as tool-managed and records which local file and content hash it came from. It powers three protections:
+
+- **Scoped deletes** — `delete-pages` / `delete-modules` only remove marker-carrying (or cache-matched) content; manually created Canvas content is never touched unless you pass `--all`.
+- **Cache rebuilding** — `rebuild-cache` reconstructs the local cache from Canvas, so a lost cache never leads to duplicate pages.
+- **Asset deduplication** — before uploading an image or file, the tool checks Canvas for an identical file by content hash and reuses it instead of creating a duplicate.
+
+> **Note**: Content uploaded with older versions of the tool has no marker, so `delete-pages` will treat it as foreign until it has been re-uploaded once (`mkdocstocanvas upload-pages --force`).
 
 ### PDF Generation
 

@@ -9,6 +9,7 @@ from rich.console import Console
 
 from .api import create_client
 from .api.canvas import CanvasUploader
+from .uploaders.base import rebuild_cache_from_canvas
 from .uploaders.labs import delete_all_labs, upload_all_labs
 from .uploaders.modules import delete_all_modules, upload_all_modules
 from .uploaders.pages import delete_all_pages, parse_upload_all_pages
@@ -220,18 +221,49 @@ def upload_labs(
 
 
 @app.command()
+def rebuild_cache(
+    ctx: typer.Context,
+    docs_root: Annotated[
+        Path, typer.Option("--docs-root", help="Path to the docs/ directory.")
+    ] = Path("docs"),
+):
+    """
+    Rebuild the local upload cache from Canvas state.
+
+    Use this when .canvas_upload_state.json is missing or deleted (new
+    machine, cleaned repo). Pages, labs and the syllabus are matched back
+    via their ownership markers and assets via content hashes, so nothing
+    is re-uploaded and no duplicates are created.
+    """
+    client: CanvasUploader = ctx.obj["client"]
+    rebuild_cache_from_canvas(
+        client, Path(".canvas_upload_state.json"), docs_root=docs_root
+    )
+    console.print("[bold green]Cache rebuilt.[/bold green]")
+
+
+@app.command()
 def delete_all(
     ctx: typer.Context,
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Skip all confirmation prompts.")
     ] = False,
+    all_items: Annotated[
+        bool,
+        typer.Option(
+            "--all", help="Delete ALL content, including anything not uploaded by mkdocstocanvas."
+        ),
+    ] = False,
 ):
     """
-    Deletes EVERYTHING: Pages, Modules, and Labs.
+    Deletes EVERYTHING the tool has uploaded: Pages, Modules, and Labs.
+
+    Content created manually in Canvas (quizzes, pages, modules) is kept
+    unless --all is given.
     """
-    console.print("Deleting all content...")
-    delete_pages(ctx, force=force)
-    delete_modules(ctx, force=force)
+    console.print("Deleting all managed content...")
+    delete_pages(ctx, force=force, all_items=all_items)
+    delete_modules(ctx, force=force, all_items=all_items)
     delete_labs(ctx, force=force)
     console.print("All content deleted!")
 
@@ -242,9 +274,15 @@ def delete_pages(
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Skip confirmation prompt.")
     ] = False,
+    all_items: Annotated[
+        bool,
+        typer.Option(
+            "--all", help="Delete ALL pages, including ones not uploaded by mkdocstocanvas."
+        ),
+    ] = False,
 ):
-    """Deletes ALL pages from the Canvas course."""
-    delete_all_pages(ctx.obj["client"], force=force)
+    """Deletes the pages uploaded by mkdocstocanvas (or ALL pages with --all)."""
+    delete_all_pages(ctx.obj["client"], force=force, all_items=all_items)
 
 
 @app.command()
@@ -253,9 +291,15 @@ def delete_modules(
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Skip confirmation prompt.")
     ] = False,
+    all_items: Annotated[
+        bool,
+        typer.Option(
+            "--all", help="Delete ALL modules, including ones not uploaded by mkdocstocanvas."
+        ),
+    ] = False,
 ):
-    """Deletes all modules."""
-    delete_all_modules(ctx.obj["client"], force=force)
+    """Deletes the modules uploaded by mkdocstocanvas (or ALL modules with --all)."""
+    delete_all_modules(ctx.obj["client"], force=force, all_items=all_items)
 
 
 @app.command()

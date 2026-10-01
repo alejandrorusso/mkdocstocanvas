@@ -27,6 +27,7 @@ from ..api.canvas import CanvasUploader
 from ..models.page import MarkdownPage, compute_file_hash
 from ..processing.markdown import process_markdown_to_html
 from ..utils import cache as utils_cache
+from ..utils.marker import make_marker, parse_marker
 
 # Shared consoles — all uploaders print through these so output is consistent.
 console = Console()
@@ -203,17 +204,22 @@ class ContentUploader:
         raw = utils_cache.load_cache(self.cache_path)
         self.pages_cache: dict[str, dict] = raw.get("pages", {})
         self.files_cache: dict[str, dict] = raw.get("files", {})
+        self.modules_cache: dict[str, dict] = raw.get("modules", {})
 
     # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------
 
     def _save_cache(self) -> None:
-        """Persist pages_cache and files_cache to disk."""
+        """Persist pages_cache, files_cache and modules_cache to disk."""
         try:
             utils_cache.save_cache(
                 self.cache_path,
-                {"pages": self.pages_cache, "files": self.files_cache},
+                {
+                    "pages": self.pages_cache,
+                    "files": self.files_cache,
+                    "modules": self.modules_cache,
+                },
             )
         except OSError as e:
             raise RuntimeError(
@@ -233,6 +239,8 @@ class ContentUploader:
         1. Upload local assets (images, files) and rewrite links.
         2. Resolve internal `.md` page links to Canvas URLs.
         3. Convert markdown to Canvas-compatible HTML.
+        4. Prepend the ownership marker (used for scoped deletes and
+           cache rebuilding).
 
         Returns the finished HTML string.
         """
@@ -242,7 +250,9 @@ class ContentUploader:
         md_page.content = md_page.get_content()
         md_page.content = self._process_markdown_assets(md_page)
         md_page.content = self._resolve_page_links(md_page)
-        return process_markdown_to_html(md_page)
+        html = process_markdown_to_html(md_page)
+        marker = make_marker(str(md_page.rel_path), md_page.md5)
+        return f"{marker}\n{html}"
 
     def _process_markdown_assets(self, md_page: MarkdownPage) -> str:
         """
@@ -369,3 +379,153 @@ class ContentUploader:
             return match.group(0)
 
         return _MD_LINK_PATTERN.sub(replace_md_link, md_page.content)
+
+    def _rebuild_cache_if_empty(self) -> None:
+        """Rebuild the cache from Canvas when it is missing or empty."""
+        if self.pages_cache:
+            return
+        console.print(
+            "[yellow]Upload cache is empty - rebuilding from Canvas...[/yellow]"
+        )
+        rebuilt = rebuild_cache_from_canvas(self.client, self.cache_path)
+        self.pages_cache = rebuilt["pages"]
+        self.files_cache = rebuilt["files"]
+        self.modules_cache = rebuilt["modules"]
+
+
+def _canvas_file_url(client: CanvasUploader, file_id: int) -> str:
+    return f"{client.base_url}/courses/{client.course_id}/files/{file_id}?wrap=1"
+
+
+def rebuild_cache_from_canvas(
+    client: CanvasUploader,
+    cache_path: Path,
+    docs_root: Path = Path("docs"),
+) -> dict:
+    """
+    Reconstruct the upload cache from Canvas state.
+
+    Pages, labs and the syllabus carry an ownership marker (rel path + md5)
+    in their body, so they can be mapped back to local files without
+    re-uploading anything. Local asset files under docs_root are matched
+    against Canvas files by content hash.
+
+    Writes the rebuilt cache to cache_path and returns it.
+    """
+    console.print("Fetching pages, assignments and files from Canvas...")
+    canvas_pages = client.list_pages(include_body=True)
+    assignments = client.list_assignments()
+    syllabus_body = client.get_syllabus()
+    client.list_files()  # warm the asset index once
+
+    pages_cache: dict[str, dict] = {}
+    files_cache: dict[str, dict] = {}
+
+    def _page_url(slug: str) -> str:
+        return f"{client.base_url}/courses/{client.course_id}/pages/{slug}"
+
+    for p in canvas_pages:
+        marker = parse_marker(p.get("body") or "")
+        if not marker:
+            continue  # not uploaded by this tool
+        pages_cache[marker["rel"]] = {
+            "page_title": p.get("title"),
+            "hash": marker.get("md5"),
+            "canvas_url": _page_url(p.get("url", "")),
+            "page_url_slug": p.get("url", ""),
+            "mentioned_by": [],
+            "resolved_md_links": {},
+        }
+
+    for a in assignments:
+        marker = parse_marker(a.get("description") or "")
+        if not marker:
+            continue
+        assignment_id = a.get("id")
+        info: dict = {
+            "hash": marker.get("md5"),
+            "canvas_assignment_id": assignment_id,
+            "canvas_name": a.get("name"),
+        }
+        if assignment_id is not None:
+            info["canvas_url"] = (
+                f"{client.base_url}/courses/{client.course_id}"
+                f"/assignments/{assignment_id}"
+            )
+        pages_cache[marker["rel"]] = info
+
+    if syllabus_body:
+        marker = parse_marker(syllabus_body)
+        if marker:
+            pages_cache[marker["rel"]] = {
+                "hash": marker.get("md5"),
+                "canvas_url": (
+                    f"{client.base_url}/courses/{client.course_id}/assignments/syllabus"
+                ),
+                "page_url_slug": "syllabus",
+                "mentioned_by": [],
+                "resolved_md_links": {},
+            }
+
+    # Local asset files (images, PDFs, ...) are matched to Canvas files by
+    # content hash, so a lost cache does not cause duplicate uploads.
+    docs_root = Path(docs_root)
+    if docs_root.is_dir():
+        for path in docs_root.rglob("*"):
+            if not path.is_file() or path.suffix.lower() in (".md", ".markdown"):
+                continue
+            file_hash = compute_file_hash(path)
+            match = (
+                client.find_existing_file(
+                    md5=file_hash, filename=path.name, size=path.stat().st_size
+                )
+                if file_hash
+                else None
+            )
+            if not match:
+                continue
+            rel = str(path.relative_to(docs_root))
+            files_cache[rel] = {
+                "hash": file_hash,
+                "canvas_url": _canvas_file_url(client, match["id"]),
+                "last_upload": datetime.now().isoformat(),
+            }
+
+    # Snapshot each page's resolved links so the incremental-upload check
+    # does not force a full re-upload right after rebuilding.
+    docs_root_abs = docs_root.resolve()
+    for rel, info in pages_cache.items():
+        md_path = docs_root / rel
+        if not md_path.is_file():
+            continue
+        try:
+            raw = md_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        links: dict[str, str] = {}
+        for match in _MD_LINK_PATTERN.finditer(raw):
+            resolved = (md_path.parent / match.group(2)).resolve()
+            try:
+                link_rel = str(resolved.relative_to(docs_root_abs))
+            except ValueError:
+                continue
+            target = pages_cache.get(link_rel)
+            if target and target.get("canvas_url"):
+                links[link_rel] = target["canvas_url"]
+        info["resolved_md_links"] = links
+
+    pages_found = sum(1 for i in pages_cache.values() if "canvas_assignment_id" not in i)
+    labs_found = len(pages_cache) - pages_found
+    console.print(
+        f"[green]✓ Rebuilt cache:[/green] {pages_found} page(s)/syllabus, "
+        f"{labs_found} lab(s), {len(files_cache)} asset file(s)"
+    )
+    if docs_root.is_dir() and not files_cache:
+        console.print(
+            "[yellow]Note: no local assets matched Canvas files by hash. "
+            "Assets will re-upload once (and are deduplicated afterwards).[/yellow]"
+        )
+
+    cache = {"pages": pages_cache, "files": files_cache, "modules": {}}
+    utils_cache.save_cache(cache_path, cache)
+    return cache
