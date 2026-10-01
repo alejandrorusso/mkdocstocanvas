@@ -40,6 +40,11 @@ class CanvasUploader:
             {"Authorization": f"Bearer {api_token}", "Accept": "application/json"}
         )
 
+        # Lazily built indexes for asset deduplication
+        self._file_index: tuple[dict[str, dict], dict[tuple[str, int], dict]] | None = (
+            None
+        )
+
     def test_connection(self) -> tuple[bool, str]:
         """
         Tests the Canvas connection by attempting to fetch the course details.
@@ -291,15 +296,68 @@ class CanvasUploader:
 
         return items
 
-    def list_pages(self) -> list[dict]:
+    def list_pages(self, include_body: bool = False) -> list[dict]:
         """
         Returns all wiki pages in the course (title + url slug).
         Handles Canvas pagination automatically.
+
+        Args:
+            include_body: Also fetch each page's HTML body (slower, but
+                needed for ownership markers and cache rebuilding).
         """
+        params: dict[str, str | int] = {"per_page": 100}
+        if include_body:
+            params["include[]"] = "body"
         return self._paginated_get(
             f"{self.base_url}/api/v1/courses/{self.course_id}/pages",
+            params,
+        )
+
+    def list_files(self) -> list[dict]:
+        """
+        Returns all files in the course (id, filename, md5, size, ...).
+        Handles Canvas pagination automatically.
+        """
+        return self._paginated_get(
+            f"{self.base_url}/api/v1/courses/{self.course_id}/files",
             {"per_page": 100},
         )
+
+    def find_existing_file(
+        self,
+        *,
+        md5: str | None = None,
+        filename: str | None = None,
+        size: int | None = None,
+    ) -> dict | None:
+        """
+        Find an existing Canvas file matching the given identity, if any.
+
+        Matching is by content hash when Canvas reports one, falling back to
+        filename + byte size (Canvas does not always return a md5 attribute).
+        Used to skip re-uploading assets that already exist in Canvas. The
+        file list is fetched once and cached for the lifetime of the client.
+        """
+        if self._file_index is None:
+            by_md5: dict[str, dict] = {}
+            by_name_size: dict[tuple[str, int], dict] = {}
+            for f in self.list_files():
+                file_id = f.get("id")
+                if file_id is None:
+                    continue
+                file_md5 = f.get("md5")
+                if file_md5:
+                    by_md5.setdefault(file_md5, f)
+                name, file_size = f.get("filename"), f.get("size")
+                if name and isinstance(file_size, int):
+                    by_name_size.setdefault((name, file_size), f)
+            self._file_index = (by_md5, by_name_size)
+        by_md5, by_name_size = self._file_index
+        if md5 and md5 in by_md5:
+            return by_md5[md5]
+        if filename is not None and size is not None:
+            return by_name_size.get((filename, size))
+        return None
 
     def delete_page(self, page_slug: str) -> bool:
         """

@@ -300,10 +300,31 @@ class ContentUploader:
             current_hash = compute_file_hash(full_path)
             cached = self.files_cache.get(rel_path_str)
 
-            if not self.force and cached and cached.get("hash") == current_hash:
+            # Assets are content-addressed, so they are never force-uploaded:
+            # the local cache is consulted, then Canvas is checked for an
+            # identical file by hash. Only a true miss triggers an upload.
+            # (--force only skips the local cache entry, not the dedupe.)
+            if cached and cached.get("hash") == current_hash and not self.force:
                 canvas_url = cached["canvas_url"]
             else:
-                canvas_url = self.client.upload_file(full_path, parent_folder)
+                canvas_url = None
+                # Skip re-uploading if an identical file already exists in
+                # Canvas (e.g. after the local cache file was lost).
+                if current_hash:
+                    existing = self.client.find_existing_file(
+                        md5=current_hash,
+                        filename=full_path.name,
+                        size=full_path.stat().st_size,
+                    )
+                    if existing:
+                        file_id = existing.get("id")
+                        if file_id is not None:
+                            canvas_url = (
+                                f"{self.client.base_url}/courses/"
+                                f"{self.client.course_id}/files/{file_id}?wrap=1"
+                            )
+                if canvas_url is None:
+                    canvas_url = self.client.upload_file(full_path, parent_folder)
                 if canvas_url:
                     self.files_cache[rel_path_str] = {
                         "hash": current_hash,

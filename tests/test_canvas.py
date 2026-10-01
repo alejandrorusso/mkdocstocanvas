@@ -71,6 +71,36 @@ class TestGetExistingPage:
             uploader.get_existing_page("hi")
 
 
+class TestFindExistingFile:
+    def _files(self):
+        return [
+            {"id": 1, "md5": "aaa", "filename": "a.png", "size": 10},
+            {"id": 2, "md5": None, "filename": "b.png", "size": 20},
+            {"id": 3, "md5": None, "filename": "no-size.png", "size": None},
+        ]
+
+    def test_lazy_index_built_once(self, uploader):
+        uploader.list_files = MagicMock(return_value=self._files())
+        assert uploader.find_existing_file(md5="aaa")["id"] == 1
+        assert uploader.find_existing_file(md5="missing") is None
+        assert uploader.list_files.call_count == 1
+
+    def test_fallback_matches_filename_and_size(self, uploader):
+        uploader.list_files = MagicMock(return_value=self._files())
+        assert uploader.find_existing_file(filename="b.png", size=20)["id"] == 2
+        # same name, wrong size -> no match
+        assert uploader.find_existing_file(filename="b.png", size=21) is None
+        # md5 wins over name+size
+        assert uploader.find_existing_file(
+            md5="aaa", filename="b.png", size=20
+        )["id"] == 1
+
+    def test_files_without_usable_identity_ignored(self, uploader):
+        uploader.list_files = MagicMock(return_value=self._files())
+        assert uploader.find_existing_file(filename="no-size.png", size=5) is None
+        assert uploader.find_existing_file(filename="b.png", size=None) is None
+
+
 class TestCreateOrUpdatePage:
     def test_slug_generated_from_title(self, uploader):
         uploader.session.get.return_value = _ok_response({"url": "my-cool-page"})

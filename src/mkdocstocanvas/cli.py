@@ -155,7 +155,7 @@ def upload_all(
     upload_labs(ctx, verbose=verbose)
 
     console.print("[dim]Pass 2: uploading pages...[/dim]")
-    upload_pages(ctx, force=True, verbose=verbose)
+    upload_pages(ctx, verbose=verbose)
 
     console.print("[dim]Pass 3: re-uploading labs to resolve page links...[/dim]")
     upload_labs(ctx, verbose=verbose)
