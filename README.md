@@ -42,11 +42,13 @@ Install `mkdocstocanvas` once, as a standalone tool — it then works from any d
 # uv (recommended)
 uv tool install --index "https://test.pypi.org/simple/" "mkdocstocanvas==3.0.3.dev1"
 
-# or pip
+# or pip (inside a virtualenv):
+python -m venv .venv
+source .venv/bin/activate
 pip install --extra-index-url https://test.pypi.org/simple/ "mkdocstocanvas==3.0.3.dev1"
 ```
 
-**Why these index flags?** Do **not** point the whole install at TestPyPI (e.g. `pip install -i https://test.pypi.org/simple/ …`): pip would then also try to resolve the *dependencies* from TestPyPI, where they aren't published, and the install fails. The flags above add TestPyPI **alongside** normal PyPI: only `mkdocstocanvas` itself is fetched from TestPyPI, while `mkdocs-material`, `markdown` and every other dependency resolves from normal PyPI.
+`--extra-index-url` / `--index` add TestPyPI *alongside* normal PyPI — the tool comes from TestPyPI, all dependencies from PyPI. Don't use `-i`/`--index-url` alone: pip would look for the dependencies on TestPyPI and fail (see [Troubleshooting](documentation/TROUBLESHOOTING.md)).
 
 Verify with `mkdocstocanvas --help`. Upgrade later with `uv tool upgrade mkdocstocanvas` (or repeat the `pip` command with a newer pin). Once a stable release reaches normal PyPI, a plain `uv tool install mkdocstocanvas` / `pip install mkdocstocanvas` will work.
 
@@ -109,19 +111,6 @@ https://canvas.instructure.com/courses/12345
                                          ^^^^^ this is your course ID
 ```
 
-### 4. Working from source (optional)
-
-For development, or to try unreleased changes from this repository:
-
-```bash
-git clone <your-repo-url>
-cd mkdocstocanvas
-uv sync
-uv run mkdocstocanvas --help
-```
-
-`uv sync` installs the CLI into the project venv (`.venv/`, editable — it always runs your working-tree code). That venv is not on your `PATH`, so prefix with `uv run` or `source .venv/bin/activate` first. Inside a checkout, create your course files the same way as in step 2 (`cp mkdocs.example.yml mkdocs.yml`, `cp -r docs-example docs` — both are gitignored, the tracked examples stay pristine). Full development setup and rules: [CONTRIBUTING.md](CONTRIBUTING.md).
-
 ## Configuration
 
 The `mkdocs.yml` file (your local copy of `mkdocs.example.yml`) defines your course structure:
@@ -155,7 +144,7 @@ A file is treated as a **lab** when it is directly inside `docs/labs/` and its f
 
 ## Project Structure
 
-The layout below is the **development repository**. As an end user you only need the course directory created in Installation step 2 — you never have to clone this repo unless you're developing.
+The layout below is the **development repository**. As an end user you only need the course directory created in Installation step 2 — you never have to clone this repo unless you're developing (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ```
 mkdocstocanvas/
@@ -186,7 +175,7 @@ mkdocstocanvas/
 
 ## Usage
 
-Everything is done through the `mkdocstocanvas` CLI, run from inside your course directory (Installation step 2). Run `mkdocstocanvas --help` for an overview, or `mkdocstocanvas <command> --help` for a specific command. If you installed from source instead, prefix with `uv run` (see [Working from source](#4-working-from-source-optional)).
+Everything is done through the `mkdocstocanvas` CLI, run from inside your course directory (Installation step 2). Run `mkdocstocanvas --help` for an overview, or `mkdocstocanvas <command> --help` for a specific command. If you installed from source instead, prefix with `uv run` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ### Local preview
 

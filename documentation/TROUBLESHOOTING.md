@@ -2,6 +2,22 @@
 
 Solutions to common problems, most-specific first. Setup instructions live in the [README](../README.md); tool internals are explained in [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
 
+## TestPyPI install fails with `No matching distribution found for mkdocs-material`
+
+You installed with `-i` / `--index-url https://test.pypi.org/simple/`, which makes TestPyPI the *only* package index. `mkdocstocanvas` itself is published there, but its dependencies are not — so dependency resolution fails.
+
+Point pip/uv at TestPyPI **in addition to** normal PyPI instead (see [Installation step 1](../README.md#1-install-the-cli-as-a-tool)):
+
+```bash
+# pip
+pip install --extra-index-url https://test.pypi.org/simple/ "mkdocstocanvas==<version>"
+
+# uv
+uv tool install --index "https://test.pypi.org/simple/" "mkdocstocanvas==<version>"
+```
+
+Only `mkdocstocanvas` is fetched from TestPyPI; every dependency (`mkdocs-material`, `markdown`, …) resolves from normal PyPI.
+
 ## `mkdocs.yml` or `docs/` missing after cloning
 
 These are gitignored working copies — create them from the tracked templates:

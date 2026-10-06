@@ -11,6 +11,14 @@ uv sync
 cp mkdocs.example.yml mkdocs.yml    # local working config (gitignored)
 cp -r docs-example docs             # local course content (gitignored)
 cp .env.example .env                # Canvas credentials (gitignored)
+uv run mkdocstocanvas --help        # verify the install
+```
+
+`uv sync` installs the CLI into the project venv (`.venv/`, editable — it always runs your working-tree code). That venv is not on your `PATH`, so prefix commands with `uv run` or `source .venv/bin/activate` first. For a bare `mkdocstocanvas` that works anywhere, install it as a standalone tool instead:
+
+```bash
+uv tool install --editable .   # follows your working-tree code while developing
+# frozen snapshot instead:     uv tool install .
 ```
 
 ## Commands
