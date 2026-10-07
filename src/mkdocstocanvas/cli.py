@@ -21,16 +21,25 @@ app = typer.Typer(
 )
 console = Console()
 
-# Commands that don't require a Canvas client
-_LOCAL_COMMANDS = {"serve", "pdf"}
-
 
 @app.callback()
 def main(ctx: typer.Context):
     """Uploads a mkdocs project to canvas."""
     ctx.ensure_object(dict)
-    if ctx.invoked_subcommand not in _LOCAL_COMMANDS:
-        ctx.obj["client"] = create_client()
+
+
+def get_client(ctx: typer.Context) -> CanvasUploader:
+    """Create the Canvas client lazily, when a command actually needs it.
+
+    Creating it in the callback would require credentials even for
+    `--help`, `--version` and other non-uploading invocations — which
+    breaks e.g. inspecting the CLI in CI before secrets are configured.
+    """
+    client = ctx.obj.get("client")
+    if client is None:
+        client = create_client()
+        ctx.obj["client"] = client
+    return client
 
 
 @app.command()
@@ -179,7 +188,7 @@ def upload_pages(
     """
     Uploads pages.
     """
-    client: CanvasUploader = ctx.obj["client"]
+    client: CanvasUploader = get_client(ctx)
     if force:
         typer.echo("Forcing upload. Ignoring cache.")
     parse_upload_all_pages(client, force=force, verbose=verbose)
@@ -201,7 +210,7 @@ def upload_modules(
     if add_pdf:
         pdf()
 
-    upload_all_modules(ctx.obj["client"], add_pdf=add_pdf, verbose=verbose)
+    upload_all_modules(get_client(ctx), add_pdf=add_pdf, verbose=verbose)
 
 
 @app.command()
@@ -217,7 +226,7 @@ def upload_labs(
     """
     Uploads labs as Canvas assignments.
     """
-    upload_all_labs(ctx.obj["client"], force=force, verbose=verbose)
+    upload_all_labs(get_client(ctx), force=force, verbose=verbose)
 
 
 @app.command()
@@ -235,7 +244,7 @@ def rebuild_cache(
     via their ownership markers and assets via content hashes, so nothing
     is re-uploaded and no duplicates are created.
     """
-    client: CanvasUploader = ctx.obj["client"]
+    client: CanvasUploader = get_client(ctx)
     rebuild_cache_from_canvas(
         client, Path(".canvas_upload_state.json"), docs_root=docs_root
     )
@@ -282,7 +291,7 @@ def delete_pages(
     ] = False,
 ):
     """Deletes the pages uploaded by mkdocstocanvas (or ALL pages with --all)."""
-    delete_all_pages(ctx.obj["client"], force=force, all_items=all_items)
+    delete_all_pages(get_client(ctx), force=force, all_items=all_items)
 
 
 @app.command()
@@ -299,7 +308,7 @@ def delete_modules(
     ] = False,
 ):
     """Deletes the modules uploaded by mkdocstocanvas (or ALL modules with --all)."""
-    delete_all_modules(ctx.obj["client"], force=force, all_items=all_items)
+    delete_all_modules(get_client(ctx), force=force, all_items=all_items)
 
 
 @app.command()
@@ -310,7 +319,7 @@ def delete_labs(
     ] = False,
 ):
     """Deletes all lab assignments."""
-    delete_all_labs(ctx.obj["client"], force=force)
+    delete_all_labs(get_client(ctx), force=force)
 
 
 if __name__ == "__main__":

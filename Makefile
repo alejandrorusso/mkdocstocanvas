@@ -1,4 +1,4 @@
-.PHONY: serve serve-full pdf pdf-install-browser upload-pages upload-pages-force upload-modules upload-labs upload-all delete-pages delete-modules delete-labs delete-all rebuild test lint format typecheck check clean
+.PHONY: serve serve-full pdf pdf-install-browser upload-pages upload-pages-force upload-modules upload-labs upload-all delete-pages delete-modules delete-labs delete-all rebuild docker-build test lint format typecheck check clean
 
 # Host/port for the local dev server (override with: make serve PORT=9000)
 HOST ?= 0.0.0.0
@@ -73,11 +73,14 @@ delete-labs:
 delete-all:
 	@$(call canvas,delete-all)
 
-# ⚠️ Complete rebuild: deletes ALL Canvas content (no confirmation),
-# then re-uploads everything. Use only for fresh setup or full resets.
+# ⚠️ Complete rebuild: deletes ALL Canvas content (no confirmation), drops the
+# upload cache, then re-uploads everything. Use only for fresh setup or full
+# resets. (upload-all has no --force option — dropping the cache is what forces
+# the full re-upload.)
 rebuild:
 	@$(call canvas,delete-all --force)
-	@$(call canvas,upload-all --force)
+	@rm -f .canvas_upload_state.json
+	@$(call canvas,upload-all)
 
 # ---------------------------------------------------------------
 # Misc
@@ -102,6 +105,11 @@ typecheck:
 
 # Everything CI would run
 check: lint typecheck test
+
+# Build the Docker image (CI/CD pipelines pull it from GHCR instead —
+# see documentation/CI-CD.md and .github/workflows/docker-publish.yml)
+docker-build:
+	docker build -t mkdocstocanvas:local .
 
 # Clean generated files (the upload cache .canvas_upload_state.json is kept)
 clean:
