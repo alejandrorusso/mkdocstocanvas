@@ -255,8 +255,8 @@ class ModuleUploader(ContentUploader):
         return re.sub(r"^[A-Z]\.\s+", "", stem).strip().lower()
 
     def _extract_file_id(self, canvas_file_url: str) -> int | None:
-        """Extract Canvas file ID from a /files/{id}/ URL."""
-        match = re.search(r"/files/(\d+)/", canvas_file_url)
+        """Extract Canvas file ID from a /files/{id} URL (slash optional)."""
+        match = re.search(r"/files/(\d+)", canvas_file_url)
         return int(match.group(1)) if match else None
 
     def _add_matching_pdf_to_module(
