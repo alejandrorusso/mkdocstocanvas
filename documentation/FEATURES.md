@@ -136,6 +136,10 @@ Images are automatically uploaded to Canvas and the markdown link is rewritten t
 | Method B | O(n²) | O(n) |
 ```
 
+On Canvas, tables are rendered with inline styling: collapsed borders, cell
+padding, and a shaded bold header row. Column alignment separators are
+respected — use `|:---:|` for centered and `|---:|` for right-aligned columns.
+
 ## Excel spreadsheets
 
 Embed Excel spreadsheets directly in your markdown with full color preservation:

@@ -1,3 +1,5 @@
+import re
+
 import markdown
 
 from ..models.page import MarkdownPage
@@ -116,6 +118,9 @@ def process_markdown_to_html(md_page: MarkdownPage) -> str:
     html_content = style_code_blocks(html_content)
     html_content = style_admonitions(html_content)
 
+    # Step 6: Style tables for Canvas compatibility
+    html_content = style_tables(html_content)
+
     return html_content
 
 
@@ -213,3 +218,35 @@ def style_admonitions(html_content: str) -> str:
         )
 
     return html_content
+
+
+# Matches bare table cells, optionally carrying the alignment produced by
+# `|:---:|`-style separators. Tags with other attributes never match, so
+# Excel-rendered tables (which always carry inline styles) pass through
+# untouched.
+_TABLE_CELL_PATTERN = re.compile(r'<(td|th)(?:\s+align="(left|center|right)")?>')
+
+_CELL_STYLE = "border: 1px solid #ddd; padding: 8px 12px; vertical-align: top;"
+
+
+def style_tables(html_content: str) -> str:
+    """Add inline styles for markdown tables (borders, padding, header row).
+
+    Canvas ignores custom stylesheets, so tables must carry their styling
+    inline — like code blocks and admonitions. Only *bare* `<table>`, `<th>`
+    and `<td>` tags are styled; column alignment from `|:---:|` separators is
+    converted to inline styles.
+    """
+    html_content = html_content.replace(
+        "<table>",
+        '<table style="border-collapse: collapse; width: 100%; margin: 1.5em 0;">',
+    )
+
+    def _style_cell(match: re.Match[str]) -> str:
+        tag, align = match.group(1), match.group(2)
+        style = f"{_CELL_STYLE} text-align: {align or 'left'};"
+        if tag == "th":
+            style += " background-color: #f5f5f5; font-weight: bold;"
+        return f'<{tag} style="{style}">'
+
+    return _TABLE_CELL_PATTERN.sub(_style_cell, html_content)
