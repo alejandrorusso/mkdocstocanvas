@@ -33,6 +33,13 @@ make test        # pytest
 
 Everything runs through `uv run` under the hood.
 
+## Docker & CI/CD
+
+The container image (`Dockerfile`) is what course-content repositories use to
+upload to Canvas from their CI pipelines. Build it locally with
+`make docker-build`, and see [documentation/CI-CD.md](documentation/CI-CD.md)
+for how the image is published to GHCR and used in GitHub Actions / GitLab CI.
+
 ## Rules
 
 - **Tests must stay offline.** Never add tests that call the Canvas API — all network access must be mocked (`requests` or the existing fakes in `tests/test_canvas.py`). The real upload/delete commands operate on a live Canvas course.

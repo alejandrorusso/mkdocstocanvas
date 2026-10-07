@@ -27,7 +27,7 @@ A complete system for publishing MkDocs-based course content to Canvas LMS, with
 
 ## Prerequisites
 
-- Python 3.14+ to install the current TestPyPI dev build (`3.0.3.dev1`); upcoming releases built from this repository support Python 3.10+
+- Python 3.10 or later
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 - Canvas API token with course management permissions
 - A Playwright/Chromium browser for PDF generation (only needed for `pdf`/`upload-modules`; install once with `mkdocstocanvas pdf --install-browser`)
@@ -40,12 +40,12 @@ Install `mkdocstocanvas` once, as a standalone tool — it then works from any d
 
 ```bash
 # uv (recommended)
-uv tool install --index "https://test.pypi.org/simple/" "mkdocstocanvas==3.0.3.dev1"
+uv tool install --index "https://test.pypi.org/simple/" "mkdocstocanvas==3.0.0.dev5"
 
 # or pip (inside a virtualenv):
 python -m venv .venv
 source .venv/bin/activate
-pip install --extra-index-url https://test.pypi.org/simple/ "mkdocstocanvas==3.0.3.dev1"
+pip install --extra-index-url https://test.pypi.org/simple/ "mkdocstocanvas==3.0.0.dev5"
 ```
 
 `--extra-index-url` / `--index` add TestPyPI *alongside* normal PyPI — the tool comes from TestPyPI, all dependencies from PyPI. Don't use `-i`/`--index-url` alone: pip would look for the dependencies on TestPyPI and fail (see [Troubleshooting](documentation/TROUBLESHOOTING.md)).
@@ -249,6 +249,7 @@ If the upload cache is lost or deleted, run `mkdocstocanvas rebuild-cache` — s
 - [Content & features reference](documentation/FEATURES.md) — math, code, admonitions, images, Excel, adding content
 - [How it works](documentation/HOW_IT_WORKS.md) — upload cache, incremental uploads, ownership markers, safe deletes, PDFs, lab rules
 - [Troubleshooting](documentation/TROUBLESHOOTING.md) — full problem/solution list
+- [Continuous deployment](documentation/CI-CD.md) — automatic uploads on push, via GitHub Actions or GitLab CI
 - [Changelog](documentation/CHANGELOG.md) — release history
 - [Contributing](CONTRIBUTING.md) — development setup, testing rules, PR checklist
 
