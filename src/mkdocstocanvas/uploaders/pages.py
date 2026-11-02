@@ -18,7 +18,7 @@ from .base import (
     parse_marker,
     require_connection,
 )
-from .labs import is_lab_rel_path
+from .labs import find_lab_files, is_lab_rel_path
 
 
 class PageUploader(ContentUploader):
@@ -42,15 +42,22 @@ class PageUploader(ContentUploader):
     def _is_syllabus_page(self, md_page: MarkdownPage) -> bool:
         return self._is_syllabus_rel(str(md_page.rel_path))
 
-    def upload_all_pages(self, pages: list[MarkdownPage]) -> None:
+    def upload_all_pages(
+        self,
+        pages: list[MarkdownPage],
+        link_seeds: list[MarkdownPage] | None = None,
+    ) -> None:
         """
-        Uploads all pages to canvas.
+        Uploads all pages to canvas, plus any page they (or *link_seeds*,
+        e.g. labs) link to that is not listed in the nav.
         """
         require_connection(self.client)
 
         # If the cache is gone (deleted, new machine), recover it from the
         # ownership markers on Canvas instead of re-uploading everything.
         self._rebuild_cache_if_empty()
+
+        pages = self._with_linked_pages(pages, link_seeds or [])
 
         # Build/refresh the mentioned_by index before uploading anything
         self._collect_mentions(pages)
@@ -304,6 +311,48 @@ class PageUploader(ContentUploader):
 
         return resolved_links
 
+    def _with_linked_pages(
+        self, pages: list[MarkdownPage], link_seeds: list[MarkdownPage]
+    ) -> list[MarkdownPage]:
+        """
+        Return *pages* followed by every markdown page reachable through
+        `.md` links (transitively) that is not already in *pages*.
+
+        *link_seeds* are only scanned for links, never returned (labs are
+        uploaded as assignments). Lab files and missing targets are skipped.
+        """
+        known = {str(p.rel_path) for p in pages}
+        known.update(str(p.rel_path) for p in link_seeds)
+        discovered: list[MarkdownPage] = []
+        queue = [*pages, *link_seeds]
+
+        while queue:
+            page = queue.pop(0)
+            for link_rel in self._iter_md_link_targets(page):
+                if link_rel in known:
+                    continue
+                known.add(link_rel)
+                if is_lab_rel_path(link_rel):
+                    continue
+                target = page.root_path / link_rel
+                if not target.is_file():
+                    console.print(
+                        f"⚠ {page.rel_path} links to missing page {link_rel}",
+                        style="bold yellow",
+                    )
+                    continue
+                linked = MarkdownPage(target, page.root_path)
+                discovered.append(linked)
+                queue.append(linked)
+
+        if discovered:
+            console.print(f"Found {len(discovered)} linked page(s) not in the nav.")
+            if self.verbose:
+                for p in discovered:
+                    console.print(f"  [dim]+ {p.rel_path}[/dim]")
+
+        return [*pages, *discovered]
+
     def _collect_mentions(self, pages: list[MarkdownPage]) -> None:
         """
         Scan all pages for links to other .md pages and build a
@@ -460,7 +509,9 @@ def parse_upload_all_pages(
         err_console.print(f"No markdown files found in {mkdocs_path}")
         raise typer.Exit(1)
 
-    markdown_pages = [MarkdownPage(docs_root / p) for p in markdown_files]
+    markdown_pages = [MarkdownPage(docs_root / p, docs_root) for p in markdown_files]
+    # Labs are not uploaded as pages, but pages they link to should be.
+    lab_pages = [MarkdownPage(p, docs_root) for p in find_lab_files(docs_root)]
 
     syllabus_rel_path = utils_config.parse_syllabus_nav_file(mkdocs_path)
 
@@ -471,7 +522,7 @@ def parse_upload_all_pages(
         syllabus_rel_path=syllabus_rel_path,
     )
 
-    uploader.upload_all_pages(markdown_pages)
+    uploader.upload_all_pages(markdown_pages, link_seeds=lab_pages)
 
 
 def delete_all_pages(

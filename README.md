@@ -6,7 +6,7 @@ A complete system for publishing MkDocs-based course content to Canvas LMS, with
 
 - 📚 **Automatic module creation** — converts the `mkdocs.yml` nav structure into Canvas modules
 - 📄 **PDF generation** — one PDF per page, attached inside modules with `--add-pdf`
-- 🔗 **Smart linking** — internal `.md` links and images are rewritten to Canvas URLs
+- 🔗 **Smart linking** — internal `.md` links and images are rewritten to Canvas URLs; linked pages are uploaded even if they are not in the nav
 - 🚀 **Incremental updates** — MD5-based caching; only changed files are uploaded
 - 🛡️ **Safe deletes** — uploaded content carries an invisible ownership marker; manually created Canvas content is never touched
 - 🧪 **Lab management** — `docs/labs/lab*.md` files become Canvas assignments

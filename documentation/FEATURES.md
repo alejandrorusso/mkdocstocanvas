@@ -22,6 +22,7 @@ For how the tool behaves internally (cache, markers, deletes, PDFs), see [HOW_IT
 | Content | Becomes in Canvas |
 |---|---|
 | Regular pages | Canvas wiki pages (nav → modules) |
+| Pages linked to but not in the nav | Canvas wiki pages, not added to any module |
 | `docs/labs/lab*.md` | Canvas assignments (see [Labs](#labs)) |
 | Syllabus nav section | The course syllabus body |
 | Images / files in markdown | Uploaded to Canvas, links rewritten |

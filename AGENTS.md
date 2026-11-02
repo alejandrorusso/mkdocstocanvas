@@ -34,6 +34,7 @@ cli.py (Typer commands)
 ```
 
 - Incremental uploads are driven by `.canvas_upload_state.json` (MD5 + Canvas slug per file). Delete it to force a full re-upload — or better, `mkdocstocanvas rebuild-cache` / let the auto-rebuild recover it from Canvas markers.
+- The uploaded page set = nav pages + `.md` files transitively linked from nav pages or labs (`PageUploader._with_linked_pages`); linked-only pages get markers but no module.
 - Internal `.md` links and images are rewritten to Canvas URLs during `_prepare_content` — the cache must be in sync or links break.
 
 ## Ownership markers & scoped deletes (important contract)
