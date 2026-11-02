@@ -1,0 +1,29 @@
+# The image build only needs pyproject.toml, uv.lock, README.md, LICENSE and src/.
+# Everything else stays out of the build context: faster builds, and credentials
+# or course content can never end up inside the image.
+.git
+.github
+.venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+site
+pdf
+dist
+docs
+docs-example
+documentation
+scripts
+tests
+.env
+.env.example
+.canvas_upload_state.json
+mkdocs.yml
+mkdocs.example.yml
+todo.md
+TODO.md
+Makefile
+CONTRIBUTING.md
+AGENTS.md
+Dockerfile
+.dockerignore

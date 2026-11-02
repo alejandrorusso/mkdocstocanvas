@@ -4,20 +4,15 @@ A complete system for publishing MkDocs-based course content to Canvas LMS, with
 
 ## Features
 
-- 📚 **Automatic Module Creation**: Converts MkDocs navigation structure into Canvas modules
-- 📄 **PDF Generation**: Automatically generates PDFs from markdown content with letter-prefixed naming
-- 🔗 **Smart Linking**: Maintains internal links between course pages
-- 🚀 **Incremental Updates**: Smart caching system only uploads changed files
-- 🔄 **Page URL Preservation**: Updates existing Canvas pages without creating duplicates
-- 🧪 **Lab Management**: Separate workflow for managing lab assignments
-- 📊 **Excel Sheet Rendering**: Embed Excel spreadsheets with full color preservation
-- 🎨 **Rich Content**: Full support for:
-  - Mathematical formulas (LaTeX/MathJax)
-  - Code syntax highlighting with Pygments
-  - Admonitions (Note, Warning, Important, etc.)
-  - Images and diagrams
-  - Tables and lists
-  - Excel spreadsheets with theme colors
+- 📚 **Automatic module creation** — converts the `mkdocs.yml` nav structure into Canvas modules
+- 📄 **PDF generation** — one PDF per page, attached inside modules with `--add-pdf`
+- 🔗 **Smart linking** — internal `.md` links and images are rewritten to Canvas URLs
+- 🚀 **Incremental updates** — MD5-based caching; only changed files are uploaded
+- 🛡️ **Safe deletes** — uploaded content carries an invisible ownership marker; manually created Canvas content is never touched
+- 🧪 **Lab management** — `docs/labs/lab*.md` files become Canvas assignments
+- 🧮 **Rich content** — LaTeX math, Pygments syntax highlighting, admonitions, tables
+- 📊 **Excel rendering** — embed spreadsheets with full color preservation
+- ♻️ **Cache recovery** — a lost upload cache can be rebuilt from Canvas
 
 ## Table of Contents
 
@@ -26,91 +21,99 @@ A complete system for publishing MkDocs-based course content to Canvas LMS, with
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
 - [Usage](#usage)
-- [Workflow](#workflow)
-- [Customization](#customization)
-- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Prerequisites
 
-- Python 3.8 or later
-- MkDocs and Material theme
+- Python 3.10 or later
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
 - Canvas API token with course management permissions
-- Required Python packages (see [Installation](#installation))
+- A Playwright/Chromium browser for PDF generation (only needed for `pdf`/`upload-modules`; install once with `mkdocstocanvas pdf --install-browser`)
 
 ## Installation
 
-### 1. Clone or Download
+### 1. Install the CLI as a tool
+
+Install `mkdocstocanvas` once, as a standalone tool — it then works from any directory, each course directory keeps its own credentials and upload cache, and tool upgrades never touch your course files. Dev builds are published on [TestPyPI](https://test.pypi.org/project/mkdocstocanvas/):
 
 ```bash
-pip install --upgrade Pygments && \
-pip install pymdown-extensions && \
-pip install mkdocs-include-markdown-plugin && \
-pip install mkdocs-material && \
-pip install mkdocs-excel-plugin && \
-pip install mkdocs-page-pdf && \
-pip install openpyxl && \
-pip install mkdocs
+# uv (recommended)
+uv tool install --index "https://test.pypi.org/simple/" "mkdocstocanvas==3.0.0.dev5"
+
+# or pip (inside a virtualenv):
+python -m venv .venv
+source .venv/bin/activate
+pip install --extra-index-url https://test.pypi.org/simple/ "mkdocstocanvas==3.0.0.dev5"
 ```
 
-```bash 
-apt-get update \
-   && apt-get install -y wget gnupg \
-   && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-   && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-   && apt-get update \
-   && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
-      --no-install-recommends \
-   && rm -rf /var/lib/apt/lists/* \
-   && npm init -y &&  \
-      npm i puppeteer
-```
+`--extra-index-url` / `--index` add TestPyPI *alongside* normal PyPI — the tool comes from TestPyPI, all dependencies from PyPI. Don't use `-i`/`--index-url` alone: pip would look for the dependencies on TestPyPI and fail (see [Troubleshooting](documentation/TROUBLESHOOTING.md)).
 
-### 2. Configure Canvas API Access
+Verify with `mkdocstocanvas --help`. Upgrade later with `uv tool upgrade mkdocstocanvas` (or repeat the `pip` command with a newer pin). Once a stable release reaches normal PyPI, a plain `uv tool install mkdocstocanvas` / `pip install mkdocstocanvas` will work.
 
-Create a `tokens.sh` file with your Canvas credentials:
+### 2. Create a course directory from the examples
+
+Give every course its own directory — course content, configuration, credentials and the upload cache all live together, and nothing is tied to a code checkout:
 
 ```bash
-cp tokens.sh.example tokens.sh
-# Edit tokens.sh with your actual credentials
+mkdir my-course && cd my-course
+
+# grab the templates from the repository (shallow clone, then discard it)
+git clone --depth 1 <your-repo-url> /tmp/mkdocstocanvas
+cp /tmp/mkdocstocanvas/mkdocs.example.yml mkdocs.yml    # course configuration
+cp -r /tmp/mkdocstocanvas/docs-example docs             # course content
+cp /tmp/mkdocstocanvas/.env.example .env                # Canvas credentials
+rm -rf /tmp/mkdocstocanvas
 ```
 
-Edit `tokens.sh`:
+Run every `mkdocstocanvas` command from inside this directory: the `.env` is loaded from here and the upload cache (`.canvas_upload_state.json`) is written here — so multiple courses each get their own isolated state, and your content never mixes with the tool's code.
+
+```
+my-course/
+├── mkdocs.yml                  # your course configuration
+├── docs/                       # your course content
+├── .env                        # Canvas credentials — never commit
+├── .canvas_upload_state.json   # upload cache (auto-generated, one per course)
+├── pdf/                        # generated PDFs
+└── site/                       # built site preview
+```
+
+If you keep your course directory under git, ignore credentials and generated files:
 
 ```bash
-#!/bin/bash
-export CANVAS_API_TOKEN="your_canvas_api_token_here"
-export CANVAS_BASE_URL="https://canvas.instructure.com"  # or your institution's URL
-export CANVAS_COURSE_ID="your_course_id_here"
+cat > .gitignore <<'EOF'
+.env
+.canvas_upload_state.json
+site/
+pdf/
+__pycache__/
+EOF
 ```
 
-**Getting your Canvas API Token:**
+### 3. Configure Canvas API access
 
-1. Log in to Canvas
-2. Go to Account → Settings
-3. Scroll to "Approved Integrations"
-4. Click "+ New Access Token"
-5. Copy the generated token
+Edit the `.env` you copied into your course directory:
 
-**Finding your Course ID:**
+```bash
+CANVAS_API_TOKEN="your_canvas_api_token_here"
+CANVAS_BASE_URL="https://canvas.instructure.com"  # or your institution's URL
+CANVAS_COURSE_ID="your_course_id_here"
+```
 
-The course ID is in the URL when viewing your course:
+The file is loaded automatically by the CLI (`.env` is gitignored — never commit real credentials).
+
+**Getting your Canvas API token:** Canvas → Account → Settings → Approved Integrations → "+ New Access Token".
+
+**Finding your course ID:** it is the number in the URL when viewing your course:
 ```
 https://canvas.instructure.com/courses/12345
                                          ^^^^^ this is your course ID
 ```
 
-### 4. Make Scripts Executable
-
-```bash
-chmod +x tokens.sh
-```
-
 ## Configuration
 
-### MkDocs Configuration
-
-The `mkdocs.yml` file defines your course structure. Key sections:
+The `mkdocs.yml` file (your local copy of `mkdocs.example.yml`) defines your course structure:
 
 ```yaml
 nav:
@@ -124,397 +127,136 @@ nav:
     - labs/lab1.md
 ```
 
-**Important**: The navigation structure determines how modules are created in Canvas.
+**Important**: the navigation structure determines how modules are created in Canvas.
 
-### Content Organization
+### Content organization
 
 ```
 docs/
 ├── index.md              # Course homepage
 ├── lectures/             # Lecture content
-│   ├── 01-introduction.md
-│   ├── 02-linear-regression.md
-│   └── 03-neural-networks.md
-├── labs/                 # Lab assignments
-│   ├── lab1.md
-│   └── lab2.md
+├── labs/                 # Lab assignments (lab*.md → Canvas assignments)
 └── assets/
     └── images/           # Images used in content
 ```
 
+A file is treated as a **lab** when it is directly inside `docs/labs/` and its filename starts with `lab` (case-insensitive); everything else is a regular page. See [How labs are recognized](documentation/HOW_IT_WORKS.md#how-labs-are-recognized) for the full rules.
+
 ## Project Structure
 
+The layout below is the **development repository**. As an end user you only need the course directory created in Installation step 2 — you never have to clone this repo unless you're developing (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
 ```
-canvas-course-publisher/
-├── docs/                    # Course content (markdown files)
-│   ├── index.md
-│   ├── lectures/
-│   ├── labs/
-│   └── assets/
-├── scripts/                 # Python scripts for Canvas integration
-│   ├── upload_modules_to_canvas.py
-│   ├── upload_all_pages_to_canvas.py
-│   ├── upload_labs_to_canvas.py
-│   └── canvas_processing.py
-├── Makefile                 # Build and deployment commands
-├── mkdocs.yml              # MkDocs configuration
-├── tokens.sh               # Canvas API credentials (gitignored)
-├── .canvas_upload_state.json  # Upload cache (auto-generated)
-├── pdf/                    # Generated PDFs (auto-created)
-└── site/                   # Built site (auto-created)
-```
-
-**Important Files:**
-- `.canvas_upload_state.json` - Tracks upload state; delete to force re-upload all files
-- `tokens.sh` - Must be created with your Canvas API credentials (not tracked in git)
-
-## How It Works
-
-### Incremental Upload System
-
-The page upload system uses intelligent caching to only upload changed files:
-
-**Upload State Tracking:**
-- Maintains `.canvas_upload_state.json` to track uploaded files
-- Stores MD5 hash of each file's content
-- Stores Canvas page URL slug for updates
-- Only uploads files that have changed since last upload
-
-**Update Behavior:**
-- **Changed files**: Updates the existing Canvas page (preserves URL)
-- **New files**: Creates new Canvas pages
-- **Unchanged files**: Skips upload (reports as "Skipped")
-
-**Force Upload:**
-```bash
-make upload-pages-force    # Ignores cache, uploads everything
-# OR manually:
-rm .canvas_upload_state.json && make upload-pages
+mkdocstocanvas/
+├── docs-example/                # Example course content (tracked template)
+├── docs/                        # Your live course content (gitignored — copy from docs-example/)
+├── src/mkdocstocanvas/          # The CLI and Canvas integration package
+│   ├── api/                     # Canvas API client
+│   ├── uploaders/               # Page, module and lab uploaders
+│   ├── processing/              # Markdown, math and Excel processing
+│   ├── models/                  # Data models
+│   └── utils/                   # Config, cache and marker helpers
+├── tests/                       # Test suite
+├── Makefile                     # Shortcuts for the CLI commands
+├── mkdocs.example.yml           # Example MkDocs configuration (tracked template)
+├── mkdocs.yml                   # Your live MkDocs configuration (gitignored)
+├── .env.example                 # Example Canvas credentials file (tracked)
+├── .env                         # Your Canvas API credentials (gitignored)
+├── pyproject.toml               # Project metadata and dependencies
+├── .canvas_upload_state.json    # Upload cache (auto-generated, gitignored)
+├── pdf/                         # Generated PDFs (auto-created)
+└── site/                        # Built site (auto-created)
 ```
 
-### PDF Naming Convention
-
-PDFs are automatically named with letter prefixes for proper ordering in Canvas:
-
-**Pattern:** `{Letter}. {markdown_basename}.pdf`
-
-**Examples:**
-```
-docs/index.md              → pdf/A. index.pdf
-docs/lectures/intro.md     → pdf/B. intro.pdf
-docs/labs/lab1.md          → pdf/C. lab1.pdf
-```
-
-The letter prefix (A., B., C., etc.) is automatically assigned based on the order in `mkdocs.yml`. PDFs are generated by the `make pdf` command and renamed automatically by `scripts/rename_pdfs_with_order.py`.
+**Important files:**
+- `mkdocs.example.yml`, `docs-example/`, `.env.example` — tracked templates; copy them when setting up (see Installation)
+- `mkdocs.yml`, `docs/`, `.env` — your local working copies (gitignored — never commit credentials)
+- `.canvas_upload_state.json` — tracks upload state; if lost or out of sync, run `mkdocstocanvas rebuild-cache`
 
 ## Usage
 
-### Local Development
+Everything is done through the `mkdocstocanvas` CLI, run from inside your course directory (Installation step 2). Run `mkdocstocanvas --help` for an overview, or `mkdocstocanvas <command> --help` for a specific command. If you installed from source instead, prefix with `uv run` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-Preview your content locally:
-
-```bash
-make serve
-```
-
-This starts a local server at `http://localhost:8000` with live reload enabled.
-
-**Note**: After editing markdown files, mkdocs will automatically rebuild. You may need to manually refresh your browser (F5) if auto-refresh doesn't work.
-
-For full plugin support (slower):
+### Local preview
 
 ```bash
-make serve-full
+mkdocstocanvas serve               # fast mode, live reload
+mkdocstocanvas serve --all-plugins # full plugin support (slower)
 ```
 
-### Building PDFs
-
-Generate PDFs from your markdown content:
+### Generating PDFs
 
 ```bash
-make pdf
+mkdocstocanvas pdf
+# first run, or if no PDFs are produced:
+mkdocstocanvas pdf --install-browser
 ```
-
-PDFs are saved to the `pdf/` directory.
 
 ### Publishing to Canvas
 
-#### Complete Rebuild (Recommended for Initial Setup)
-
-Completely rebuild your Canvas course from scratch:
+Complete rebuild (recommended for initial setup):
 
 ```bash
-./rebuild_canvas.sh
+mkdocstocanvas delete-all --force
+mkdocstocanvas upload-all --force
 ```
 
-This script performs a complete rebuild:
-1. Cleans generated files
-2. Deletes all modules from Canvas
-3. Deletes all pages from Canvas
-4. Deletes all lab assignments from Canvas
-5. Generates PDFs
-6. Uploads all pages to Canvas
-7. Creates modules with pages and PDFs
-8. Uploads lab assignments
+⚠️ **Warning**: this deletes existing tool-managed content! Use only for fresh setup or complete updates.
 
-**⚠️ Warning**: This deletes all existing content! Use only for fresh setup or complete updates.
-
-#### Individual Workflows
-
-Upload only pages:
+Individual workflows:
 
 ```bash
-make upload-pages
+mkdocstocanvas upload-pages                # pages only, incremental
+mkdocstocanvas upload-labs                 # lab assignments only
+mkdocstocanvas upload-modules --add-pdf    # builds PDFs, uploads pages, creates + publishes modules
+mkdocstocanvas upload-all                  # labs → pages → labs → modules
 ```
 
-Upload only lab assignments:
+### Deleting content
+
+⚠️ **Warning**: these commands permanently delete content from Canvas!
+
+By default, deletes only remove content **uploaded by mkdocstocanvas** (matched via ownership markers and the cache). Manually created Canvas content is left untouched; add `--all` to include it:
 
 ```bash
-make upload-labs
+mkdocstocanvas delete-pages          # tool-managed pages only
+mkdocstocanvas delete-modules        # tool-managed modules only
+mkdocstocanvas delete-labs           # lab assignments
+mkdocstocanvas delete-all            # everything uploaded by the tool
+mkdocstocanvas delete-pages --all    # everything, including manually created content
 ```
 
-Upload modules (includes PDF generation):
+### Updating existing content
+
+1. Edit your markdown files
+2. Upload changes:
 
 ```bash
-make upload-modules
+mkdocstocanvas upload-pages             # only changed files
+mkdocstocanvas upload-modules --add-pdf # recreate modules with PDFs
 ```
 
-This command:
-1. Builds the site
-2. Generates PDFs
-3. Uploads all pages to Canvas
-4. Creates modules with pages and PDFs
-5. Publishes all the modules 
-
-### Deleting Content
-
-**⚠️ Warning**: These commands permanently delete content from Canvas!
-
-Delete all modules (keeps pages):
+The upload detects changed files by MD5 hash, updates existing Canvas pages (preserving URLs), and skips unchanged files. To re-upload everything regardless of the cache:
 
 ```bash
-make delete-modules
+mkdocstocanvas upload-pages --force     # also overwrites manual edits made in Canvas
 ```
 
-Delete all pages:
+If the upload cache is lost or deleted, run `mkdocstocanvas rebuild-cache` — see [Recovering a lost cache](documentation/HOW_IT_WORKS.md#recovering-a-lost-cache).
 
-```bash
-make delete-pages
-```
+## Documentation
 
-Delete all lab assignments:
+- [Content & features reference](documentation/FEATURES.md) — math, code, admonitions, images, Excel, adding content
+- [How it works](documentation/HOW_IT_WORKS.md) — upload cache, incremental uploads, ownership markers, safe deletes, PDFs, lab rules
+- [Troubleshooting](documentation/TROUBLESHOOTING.md) — full problem/solution list
+- [Continuous deployment](documentation/CI-CD.md) — automatic uploads on push, via GitHub Actions or GitLab CI
+- [Changelog](documentation/CHANGELOG.md) — release history
+- [Contributing](CONTRIBUTING.md) — development setup, testing rules, PR checklist
 
-```bash
-make delete-labs
-```
+## Contributing
 
-### Cleaning Local Files
-
-Remove generated files:
-
-```bash
-make clean
-```
-
-### Updating Existing Content
-
-The system uses incremental updates for efficiency:
-
-1. **Edit your markdown files**
-2. **Upload changes:**
-   ```bash
-   make upload-pages        # Only uploads changed files
-   make upload-modules      # Recreates modules with PDFs
-   ```
-
-The script will:
-- Automatically detect which files changed
-- Update existing Canvas pages (preserves URLs)
-- Skip unchanged files for faster uploads
-- Regenerate and upload PDFs
-
-**Force full upload if needed:**
-```bash
-make upload-pages-force  # Uploads all files, ignoring cache
-```
-
-## Customization
-
-### Adding New Content
-
-1. **Add a new lecture:**
-   - Create `docs/lectures/new-lecture.md`
-   - Add to `mkdocs.yml` navigation:
-     ```yaml
-     - Lecture 4 - New Topic:
-       - lectures/04-new-topic.md
-     ```
-   - Run `make upload-modules`
-
-2. **Add a new lab:**
-   - Create `docs/labs/new-lab.md`
-   - Add to `mkdocs.yml` navigation
-   - Run `make upload-labs` or `make upload-modules`
-
-### Markdown Features
-
-#### Mathematical Formulas
-
-Inline math: `$E = mc^2$`
-
-Display math:
-```markdown
-$$
-\frac{\partial \mathcal{L}}{\partial \theta} = \frac{1}{n} \sum_{i=1}^{n} (h_\theta(x_i) - y_i)x_i
-$$
-```
-
-#### Code Blocks
-
-```python
-def hello_world():
-    """A simple example."""
-    print("Hello, World!")
-```
-
-#### Admonitions
-
-```markdown
-!!! note "Important Information"
-    This is a note admonition.
-
-!!! warning "Be Careful"
-    This is a warning.
-
-!!! important "Critical"
-    This is very important!
-
-!!! tip "Pro Tip"
-    Here's a helpful tip.
-
-!!! success "Well Done"
-    Great job!
-```
-
-#### Images
-
-```markdown
-![Alt text](../assets/images/diagram.png)
-```
-
-#### Excel Spreadsheets
-
-Embed Excel spreadsheets directly in your markdown with full color preservation:
-
-```markdown
-{{ render_excel_sheet('./path/to/spreadsheet.xlsx', 'SheetName') }}
-```
-
-**Example:**
-
-```markdown
-## Course Schedule
-
-{{ render_excel_sheet('./schedule.xlsx', 'Schedule') }}
-```
-
-Features:
-- Preserves cell background colors (including theme colors with tints)
-- Preserves text colors and bold formatting
-- Extracts colors from custom Excel themes
-- Renders as responsive HTML tables
-- Works in both local preview and Canvas
-
-**Requirements:**
-- Install `mkdocs-excel-plugin` and `openpyxl`
-- Place Excel files in your `docs/` directory
-
-#### Tables
-
-```markdown
-| Method | Time Complexity | Space Complexity |
-|--------|----------------|------------------|
-| Method A | O(n) | O(1) |
-| Method B | O(n²) | O(n) |
-```
-
-### Customizing Themes
-
-Edit `mkdocs.yml` to change colors, fonts, and features:
-
-```yaml
-theme:
-  name: material
-  palette:
-    primary: indigo
-    accent: indigo
-  features:
-    - navigation.tabs
-    - navigation.sections
-```
-
-
-## Troubleshooting
-
-### Common Issues
-
-**PDFs not found during upload**:
-- PDFs must follow naming pattern: `{Letter}. {basename}.pdf`
-- Run `make pdf` to generate PDFs with correct names
-- Check that PDFs exist in `pdf/` directory with correct prefixes (A., B., C., etc.)
-- Verify `scripts/rename_pdfs_with_order.py` ran successfully
-
-**Duplicate pages being created**:
-- The script now automatically updates existing pages
-- If you see duplicates, delete `.canvas_upload_state.json` and re-upload
-- Use `make delete-pages` to clean up Canvas, then `make upload-pages-force`
-
-**Pages not updating**:
-- Check if `.canvas_upload_state.json` exists and has correct page URLs
-- Force upload to bypass cache: `make upload-pages-force`
-- Clear metadata: `rm .canvas_upload_state.json && make upload-pages`
-
-**Canvas API errors**:
-- Verify your Canvas API token in `tokens.sh`
-- Check course ID is correct
-- Ensure token has proper permissions (manage course content)
-
-**Math formulas not rendering**:
-- Enable MathJax in Canvas: Course Settings → Feature Options → "New Math Equation Editor"
-- Check LaTeX syntax is correct
-- Test locally with `make serve` first
-
-**Images not displaying**:
-- Verify image paths are relative to markdown file location
-- Check images exist in `docs/` directory
-- Images are automatically uploaded to Canvas
-
-**Excel sheets not rendering**:
-- Install required packages: `pip install mkdocs-excel-plugin openpyxl`
-- Place Excel files in `docs/` directory
-- Use correct sheet name in render command
-
-### Getting Help
-
-If you encounter issues:
-
-1. Check the error messages in console output
-2. Verify all prerequisites are installed
-3. Test with `make serve` locally first
-4. Check Canvas permissions and API token
-5. Review the example course structure
-
-### Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and the rules (offline tests only, marker contract).
 
 ## License
 
 This project is licensed under the Mozilla Public License 2.0 (MPL-2.0). See the [LICENSE](LICENSE) file for details.
-

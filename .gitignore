@@ -6,11 +6,18 @@
 node_modules/
 package-lock.json
 
-# Canvas API credentials and tokens
-tokens.sh
+# Canvas API credentials
+.env
 
 # Canvas upload state cache
 .canvas_upload_state.json
+
+# Canvas page
+docs/
+mkdocs.yml
+
+# Build artifacts
+/dist/
 
 # Python
 __pycache__/
@@ -22,6 +29,7 @@ env/
 venv/
 ENV/
 .venv
+.python-version
 
 # IDE
 .vscode/
