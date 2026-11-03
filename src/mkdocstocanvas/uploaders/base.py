@@ -176,7 +176,7 @@ _MD_LINK_PATTERN = re.compile(
 
 # Matches optional leading '!', [alt/text], and (path) — for assets
 _ASSET_PATTERN = re.compile(
-    r'(!)?\[([^\]]+)\]\(\s*([^\s\)]+)(?:\s+(?:"[^"]*"|\'[^\']*\'))?\s*\)',
+    r'(!)?\[([^\]]*)\]\(\s*([^\s\)]+)(?:\s+(?:"[^"]*"|\'[^\']*\'))?\s*\)',
 )
 
 
@@ -344,7 +344,7 @@ class ContentUploader:
 
             if canvas_url:
                 if is_image:
-                    return f'<img src="{canvas_url}" alt="{text}" />'
+                    return f'<img src="{_canvas_image_src(canvas_url)}" alt="{text}" />'
                 return f"[{text}]({canvas_url})"
 
             return match.group(0)
@@ -391,6 +391,19 @@ class ContentUploader:
         self.pages_cache = rebuilt["pages"]
         self.files_cache = rebuilt["files"]
         self.modules_cache = rebuilt["modules"]
+
+
+def _canvas_image_src(canvas_url: str) -> str:
+    """
+    Turn a cached file URL into one usable as an ``<img src>``.
+
+    ``/files/{id}?wrap=1`` serves Canvas's HTML preview page (right for
+    links, but renders nothing in an ``<img>``); ``/files/{id}/preview``
+    serves the image bytes, matching what Canvas's own editor inserts.
+    """
+    if canvas_url.endswith("?wrap=1"):
+        return canvas_url.removesuffix("?wrap=1") + "/preview"
+    return canvas_url
 
 
 def _canvas_file_url(client: CanvasUploader, file_id: int) -> str:
@@ -514,7 +527,9 @@ def rebuild_cache_from_canvas(
                 links[link_rel] = target["canvas_url"]
         info["resolved_md_links"] = links
 
-    pages_found = sum(1 for i in pages_cache.values() if "canvas_assignment_id" not in i)
+    pages_found = sum(
+        1 for i in pages_cache.values() if "canvas_assignment_id" not in i
+    )
     labs_found = len(pages_cache) - pages_found
     console.print(
         f"[green]✓ Rebuilt cache:[/green] {pages_found} page(s)/syllabus, "
