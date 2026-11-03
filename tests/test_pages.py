@@ -88,3 +88,38 @@ class TestUploadLinkedPages:
             if c.args[0] == "A"
         ]
         assert b_url in a_bodies[-1]
+
+
+class TestCachedUrlHostChange:
+    """Regression: after CANVAS_BASE_URL moves to another domain for the same
+    Canvas, cached URLs still carry the old host. Links to pages uploaded later
+    in the run (e.g. linked-only pages) used to keep that stale host."""
+
+    OLD = "https://old.example.com/courses/123/pages/b"
+
+    def _setup(self, tmp_path: Path, docs: Path):
+        (docs / "a.md").write_text("# A\n\n[b](extra/b.md#x)\n")
+        uploader = _uploader(tmp_path, _client())
+        page = MarkdownPage(docs / "a.md", docs)
+        uploader.pages_cache["extra/b.md"] = {
+            "canvas_url": self.OLD,
+            "page_url_slug": "b",
+        }
+        return uploader, page
+
+    def test_link_uses_configured_host(self, tmp_path: Path, docs: Path):
+        uploader, page = self._setup(tmp_path, docs)
+        html = uploader._prepare_content(page)
+        assert 'href="https://canvas.example.com/courses/123/pages/b#x"' in html
+        assert "old.example.com" not in html
+
+    def test_host_change_marks_mentioner_dirty(self, tmp_path: Path, docs: Path):
+        # The page itself is unchanged, but its stored link snapshot has the
+        # old host, so it is re-uploaded without --force.
+        uploader, page = self._setup(tmp_path, docs)
+        uploader.pages_cache["a.md"] = {
+            "hash": page.md5,
+            "page_url_slug": "a",
+            "resolved_md_links": {"extra/b.md": self.OLD},
+        }
+        assert uploader._needs_upload(page)

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from mkdocstocanvas.models.page import MarkdownPage, compute_file_hash
-from mkdocstocanvas.uploaders.base import ContentUploader
+from mkdocstocanvas.uploaders.base import ContentUploader, rebase_url_host
 from mkdocstocanvas.utils.marker import parse_marker
 
 
@@ -187,4 +187,32 @@ class TestAssetDedupe:
         # the cache keeps the canonical URL; conversion happens at render time
         assert uploader.uploader.files_cache["img.png"]["canvas_url"].endswith(
             "/files/1?wrap=1"
+        )
+
+
+class TestRebaseUrlHost:
+    def test_swaps_scheme_and_host_keeps_path_and_query(self):
+        url = "https://chalmers.instructure.com/courses/41536/files/7?wrap=1"
+        assert (
+            rebase_url_host(url, "https://canvas.chalmers.se")
+            == "https://canvas.chalmers.se/courses/41536/files/7?wrap=1"
+        )
+
+    def test_relative_url_unchanged(self):
+        assert rebase_url_host("img.png", "https://canvas.chalmers.se") == "img.png"
+
+    def test_cached_asset_with_old_host_is_rebased(self, uploader, tmp_path):
+        image = tmp_path / "img.png"
+        image.write_bytes(b"png-bytes")
+        page = uploader.page("page.md", "![pic](img.png)\n")
+        uploader.uploader.files_cache["img.png"] = {
+            "hash": compute_file_hash(image),
+            "canvas_url": "https://old.example.com/courses/123/files/7?wrap=1",
+        }
+
+        html = uploader.uploader._prepare_content(page)
+        assert 'src="https://canvas.example.com/courses/123/files/7/preview"' in html
+        # the cache entry is healed too
+        assert uploader.uploader.files_cache["img.png"]["canvas_url"] == (
+            "https://canvas.example.com/courses/123/files/7?wrap=1"
         )

@@ -11,6 +11,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 
 import typer
 from rich.console import Console
@@ -315,7 +316,8 @@ class ContentUploader:
             # identical file by hash. Only a true miss triggers an upload.
             # (--force only skips the local cache entry, not the dedupe.)
             if cached and cached.get("hash") == current_hash and not self.force:
-                canvas_url = cached["canvas_url"]
+                canvas_url = self._current_host_url(cached["canvas_url"])
+                cached["canvas_url"] = canvas_url
             else:
                 canvas_url = None
                 # Skip re-uploading if an identical file already exists in
@@ -374,11 +376,23 @@ class ContentUploader:
 
             info = self.pages_cache.get(rel)
             if info and info.get("canvas_url"):
-                return f"[{text}]({info['canvas_url']}{anchor})"
+                url = self._current_host_url(info["canvas_url"])
+                return f"[{text}]({url}{anchor})"
 
             return match.group(0)
 
         return _MD_LINK_PATTERN.sub(replace_md_link, md_page.content)
+
+    def _current_host_url(self, canvas_url: str) -> str:
+        """
+        Point a cached Canvas URL at the configured CANVAS_BASE_URL host.
+
+        The cache outlives config changes (e.g. the CI cache keeps it when
+        CANVAS_BASE_URL is switched to another domain for the same Canvas),
+        so cached URLs may carry an old host. Only scheme + host are swapped;
+        the course/page/file path is kept as is.
+        """
+        return rebase_url_host(canvas_url, self.client.base_url)
 
     def _rebuild_cache_if_empty(self) -> None:
         """Rebuild the cache from Canvas when it is missing or empty."""
@@ -391,6 +405,15 @@ class ContentUploader:
         self.pages_cache = rebuilt["pages"]
         self.files_cache = rebuilt["files"]
         self.modules_cache = rebuilt["modules"]
+
+
+def rebase_url_host(url: str, base_url: str) -> str:
+    """Return *url* with its scheme and host replaced by those of *base_url*."""
+    base = urlsplit(base_url)
+    parts = urlsplit(url)
+    if not base.netloc or not parts.netloc:
+        return url
+    return urlunsplit(parts._replace(scheme=base.scheme, netloc=base.netloc))
 
 
 def _canvas_image_src(canvas_url: str) -> str:

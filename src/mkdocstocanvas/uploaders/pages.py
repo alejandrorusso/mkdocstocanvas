@@ -307,7 +307,7 @@ class PageUploader(ContentUploader):
             info = self.pages_cache.get(link_rel)
             canvas_url = info.get("canvas_url") if isinstance(info, dict) else None
             if canvas_url:
-                resolved_links[link_rel] = canvas_url
+                resolved_links[link_rel] = self._current_host_url(canvas_url)
 
         return resolved_links
 
