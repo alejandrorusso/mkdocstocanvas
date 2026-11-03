@@ -8,10 +8,36 @@ def convert_align_to_array(content: str) -> str:
     return content
 
 
+def _protect_display(math_content: str) -> str:
+    """Shield display-math content from markdown and wrap it in sentinels."""
+    math_content = convert_align_to_array(math_content)
+    math_content = math_content.replace("\\\\", "§LATEXLINEBREAK§")
+    math_content = math_content.replace("\\", "\\\\")
+    math_content = math_content.replace("_", "§UNDERSCORE§")
+    math_content = math_content.replace("*", "§ASTERISK§")
+    math_content = math_content.replace("~", "§TILDE§")
+    return f"§MATH_DISPLAY_START§{math_content}§MATH_DISPLAY_END§"
+
+
+def _protect_inline(math_content: str) -> str:
+    """Shield inline-math content from markdown and wrap it in sentinels."""
+    math_content = math_content.replace("\\", "\\\\")
+    math_content = math_content.replace("_", "§UNDERSCORE§")
+    math_content = math_content.replace("*", "§ASTERISK§")
+    math_content = math_content.replace("~", "§TILDE§")
+    return f"§MATH_INLINE_START§{math_content}§MATH_INLINE_END§"
+
+
 def robust_math_protection(content: str) -> str:
     """
     Robust math protection using character-by-character parsing.
     This avoids complex regex issues with multiline math content.
+
+    Recognised delimiters (the same set pymdownx.arithmatex accepts):
+    ``$$...$$`` and ``\\[...\\]`` for display math, ``$...$`` and
+    ``\\(...\\)`` for inline math. Without protection, Python-Markdown
+    treats ``\\(`` / ``\\[`` as escaped characters and drops the backslash,
+    so the math would reach Canvas as plain text.
     """
     result = []
     i = 0
@@ -19,35 +45,34 @@ def robust_math_protection(content: str) -> str:
 
     while i < length:
         # Look for $$ (display math)
-        if i < length - 1 and content[i : i + 2] == "$$":
-            # Find the closing $$
-            j = i + 2
-            while j < length - 1:
-                if content[j : j + 2] == "$$":
-                    # Found closing $$
-                    math_content = content[i + 2 : j]
-
-                    # Convert align to array FIRST
-                    math_content = convert_align_to_array(math_content)
-                    # Preserve line breaks
-                    math_content = math_content.replace("\\\\", "§LATEXLINEBREAK§")
-                    # Double all remaining backslashes to protect from markdown
-                    math_content = math_content.replace("\\", "\\\\")
-                    # Protect underscores, asterisks, and tildes from markdown processing
-                    math_content = math_content.replace("_", "§UNDERSCORE§")
-                    math_content = math_content.replace("*", "§ASTERISK§")
-                    math_content = math_content.replace("~", "§TILDE§")
-
-                    result.append(
-                        f"§MATH_DISPLAY_START§{math_content}§MATH_DISPLAY_END§"
-                    )
-                    i = j + 2
-                    break
-                j += 1
-            else:
-                # No closing $$ found, treat as regular character
+        if content.startswith("$$", i):
+            j = content.find("$$", i + 2)
+            if j == -1:
                 result.append(content[i])
                 i += 1
+            else:
+                result.append(_protect_display(content[i + 2 : j]))
+                i = j + 2
+
+        # Look for \[ ... \] or \( ... \) (not when the backslash is itself
+        # escaped, e.g. a literal "\\(" in markdown).
+        elif (
+            content[i] == "\\"
+            and i + 1 < length
+            and content[i + 1] in "[("
+            and (i == 0 or content[i - 1] != "\\")
+        ):
+            closing = "\\]" if content[i + 1] == "[" else "\\)"
+            j = content.find(closing, i + 2)
+            if j == -1:
+                result.append(content[i])
+                i += 1
+            elif closing == "\\]":
+                result.append(_protect_display(content[i + 2 : j]))
+                i = j + 2
+            else:
+                result.append(_protect_inline(content[i + 2 : j]))
+                i = j + 2
 
         # Look for single $ (inline math) - but not if it's part of $$
         elif (
@@ -65,15 +90,7 @@ def robust_math_protection(content: str) -> str:
                     j += 1
 
             if j < length:
-                # Found closing $
-                math_content = content[i + 1 : j]
-
-                math_content = math_content.replace("\\", "\\\\")
-                math_content = math_content.replace("_", "§UNDERSCORE§")
-                math_content = math_content.replace("*", "§ASTERISK§")
-                math_content = math_content.replace("~", "§TILDE§")
-
-                result.append(f"§MATH_INLINE_START§{math_content}§MATH_INLINE_END§")
+                result.append(_protect_inline(content[i + 1 : j]))
                 i = j + 1
             else:
                 # No closing $ found, treat as regular character

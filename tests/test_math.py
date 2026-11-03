@@ -80,3 +80,46 @@ class TestMixedContent:
         restored = roundtrip(md)
         assert restored.startswith("a_b *c* ~d~ ")
         assert restored.endswith(r"\(e_f\)")
+
+
+class TestBackslashDelimiters:
+    """\\( \\) and \\[ \\] are valid arithmatex delimiters and must survive."""
+
+    def test_inline_paren_roundtrip(self):
+        assert roundtrip(r"where \( \pi_{Low} \) is") == r"where \( \pi_{Low} \) is"
+
+    def test_display_bracket_becomes_dollars(self):
+        md = "\\[\n\\forall h_1, h_2 \\in H\n\\]"
+        restored = roundtrip(md)
+        assert restored.startswith("$$") and restored.endswith("$$")
+        assert r"\forall h_1, h_2 \in H" in restored
+
+    def test_escaped_backslash_is_not_math(self):
+        # "\\(" in markdown is a literal backslash followed by "("
+        assert roundtrip(r"a \\(b\) c") == r"a \\(b\) c"
+
+    def test_unclosed_left_alone(self):
+        assert roundtrip(r"see \[1 for details") == r"see \[1 for details"
+
+    def test_full_pipeline_in_admonition(self):
+        from pathlib import Path
+
+        from mkdocstocanvas.processing.markdown import process_markdown_to_html
+
+        class _Page:
+            path = Path("page.md")
+            content = (
+                "!!! Note\n"
+                "    **Non-interference**:\n\n"
+                "    \\[\n"
+                "    \\forall h_1, h_2 \\in H, \\; \\forall l \\in L, \\quad\n"
+                "    \\pi_{Low}(P(h_1, l)) = \\pi_{Low}(P(h_2, l))\n"
+                "    \\]\n\n"
+                "    where \\( \\pi_{Low} \\) is the projection.\n"
+            )
+
+        html = process_markdown_to_html(_Page())  # type: ignore[arg-type]
+        assert r"\pi_{Low}(P(h_1, l)) = \pi_{Low}(P(h_2, l))" in html
+        assert "$$" in html
+        assert r"\( \pi_{Low} \)" in html
+        assert "<em>" not in html
