@@ -24,9 +24,7 @@ _TH_LEFT = (
     '<th style="border: 1px solid #ddd; padding: 8px 12px; vertical-align: top; '
     'text-align: left; background-color: #f5f5f5; font-weight: bold;">'
 )
-_TABLE_TAG = (
-    '<table style="border-collapse: collapse; width: 100%; margin: 1.5em 0;">'
-)
+_TABLE_TAG = '<table style="border-collapse: collapse; width: 100%; margin: 1.5em 0;">'
 
 
 def _render(tmp_path: Path, content: str) -> str:

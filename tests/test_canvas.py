@@ -91,9 +91,9 @@ class TestFindExistingFile:
         # same name, wrong size -> no match
         assert uploader.find_existing_file(filename="b.png", size=21) is None
         # md5 wins over name+size
-        assert uploader.find_existing_file(
-            md5="aaa", filename="b.png", size=20
-        )["id"] == 1
+        assert (
+            uploader.find_existing_file(md5="aaa", filename="b.png", size=20)["id"] == 1
+        )
 
     def test_files_without_usable_identity_ignored(self, uploader):
         uploader.list_files = MagicMock(return_value=self._files())

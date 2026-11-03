@@ -31,11 +31,16 @@ class TestExtractFileId:
 
     def test_parses_url_with_trailing_slash(self, tmp_path):
         uploader = _uploader(tmp_path)
-        assert uploader._extract_file_id("https://x.example.com/courses/1/files/42/") == 42
+        assert (
+            uploader._extract_file_id("https://x.example.com/courses/1/files/42/") == 42
+        )
 
     def test_returns_none_for_non_file_url(self, tmp_path):
         uploader = _uploader(tmp_path)
-        assert uploader._extract_file_id("https://x.example.com/courses/1/pages/foo") is None
+        assert (
+            uploader._extract_file_id("https://x.example.com/courses/1/pages/foo")
+            is None
+        )
 
 
 class TestAddPdf:

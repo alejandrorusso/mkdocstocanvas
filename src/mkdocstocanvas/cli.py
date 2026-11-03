@@ -260,7 +260,8 @@ def delete_all(
     all_items: Annotated[
         bool,
         typer.Option(
-            "--all", help="Delete ALL content, including anything not uploaded by mkdocstocanvas."
+            "--all",
+            help="Delete ALL content, including anything not uploaded by mkdocstocanvas.",
         ),
     ] = False,
 ):
@@ -286,7 +287,8 @@ def delete_pages(
     all_items: Annotated[
         bool,
         typer.Option(
-            "--all", help="Delete ALL pages, including ones not uploaded by mkdocstocanvas."
+            "--all",
+            help="Delete ALL pages, including ones not uploaded by mkdocstocanvas.",
         ),
     ] = False,
 ):
@@ -303,7 +305,8 @@ def delete_modules(
     all_items: Annotated[
         bool,
         typer.Option(
-            "--all", help="Delete ALL modules, including ones not uploaded by mkdocstocanvas."
+            "--all",
+            help="Delete ALL modules, including ones not uploaded by mkdocstocanvas.",
         ),
     ] = False,
 ):

@@ -41,8 +41,7 @@ class TestRebuildCacheFromCanvas:
             {
                 "id": 55,
                 "name": "Lab 1",
-                "description": make_marker("labs/lab1.md", "h2")
-                + "<p>lab</p>",
+                "description": make_marker("labs/lab1.md", "h2") + "<p>lab</p>",
             }
         ]
         client = _make_client(pages, assignments, None, [])
@@ -62,9 +61,7 @@ class TestRebuildCacheFromCanvas:
         assert load_cache(tmp_path / "state.json") == cache
 
     def test_syllabus_restored(self, tmp_path: Path):
-        client = _make_client(
-            [], [], make_marker("syllabus.md", "h9"), []
-        )
+        client = _make_client([], [], make_marker("syllabus.md", "h9"), [])
         cache = rebuild_cache_from_canvas(client, tmp_path / "state.json", tmp_path)
         syllabus = cache["pages"]["syllabus.md"]
         assert syllabus["page_url_slug"] == "syllabus"

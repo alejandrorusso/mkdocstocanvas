@@ -176,8 +176,7 @@ def _find_lab_assignments(
     return [
         a
         for a in assignments
-        if a.get("id") in cached_ids
-        or _LAB_ASSIGNMENT_PATTERN.match(a.get("name", ""))
+        if a.get("id") in cached_ids or _LAB_ASSIGNMENT_PATTERN.match(a.get("name", ""))
     ]
 
 
