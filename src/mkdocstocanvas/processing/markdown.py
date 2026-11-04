@@ -185,7 +185,9 @@ def style_code_blocks(html_content: str) -> str:
 
     html_content = html_content.replace(
         "<pre>",
-        '<pre style="background-color: #f6f8fa; margin: 0; overflow-x: auto; color: #24292e; line-height: 1.5;">',
+        # font-size: Canvas's own stylesheet makes pre 12px, so the code
+        # (0.9em of it) came out much smaller than the text around it.
+        '<pre style="background-color: #f6f8fa; margin: 0; overflow-x: auto; color: #24292e; line-height: 1.5; font-size: 1rem;">',
     )
 
     html_content = html_content.replace(
