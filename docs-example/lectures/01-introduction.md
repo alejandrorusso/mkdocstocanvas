@@ -113,6 +113,7 @@ where $\eta$ is the learning rate.
 ```python
 import numpy as np
 
+
 def gradient_descent(X, y, theta, learning_rate=0.01, iterations=1000):
     """
     Perform gradient descent to minimize the loss function.
@@ -148,13 +149,13 @@ def gradient_descent(X, y, theta, learning_rate=0.01, iterations=1000):
         errors = predictions - y
 
         # Compute gradient
-        gradient = (1/m) * X.T.dot(errors)
+        gradient = (1 / m) * X.T.dot(errors)
 
         # Update parameters
         theta = theta - learning_rate * gradient
 
         # Compute and store loss
-        loss = (1/(2*m)) * np.sum(errors**2)
+        loss = (1 / (2 * m)) * np.sum(errors**2)
         loss_history.append(loss)
 
         if i % 100 == 0:
@@ -203,9 +204,7 @@ We typically split our data into three sets:
 from sklearn.model_selection import train_test_split
 
 # Split data into train+val and test
-X_temp, X_test, y_temp, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+X_temp, X_test, y_temp, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Split train+val into train and validation
 X_train, X_val, y_train, y_val = train_test_split(

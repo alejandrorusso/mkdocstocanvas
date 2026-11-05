@@ -89,7 +89,9 @@ def parse_mkdocs_nav_sections(mkdocs_path: Path) -> list[dict] | None:
         if isinstance(item, dict):
             for section_name, section_content in item.items():
                 pages = _collect_markdown_files(
-                    section_content if isinstance(section_content, list) else [section_content]
+                    section_content
+                    if isinstance(section_content, list)
+                    else [section_content]
                 )
                 if pages:
                     sections.append({"name": section_name, "pages": pages})

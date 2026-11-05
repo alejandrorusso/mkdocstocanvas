@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from mkdocstocanvas.models.page import MarkdownPage, compute_file_hash
-from mkdocstocanvas.uploaders.base import ContentUploader
+from mkdocstocanvas.uploaders.base import ContentUploader, rebase_url_host
 from mkdocstocanvas.utils.marker import parse_marker
 
 
@@ -73,7 +73,7 @@ class TestAssetDedupe:
 
         html = uploader.uploader._prepare_content(page)
         client.upload_file.assert_not_called()
-        assert 'src="https://canvas.example.com/courses/123/files/42?wrap=1"' in html
+        assert 'src="https://canvas.example.com/courses/123/files/42/preview"' in html
         assert uploader.uploader.files_cache["img.png"]["canvas_url"].endswith(
             "/files/42?wrap=1"
         )
@@ -91,7 +91,7 @@ class TestAssetDedupe:
 
         html = uploader.uploader._prepare_content(page)
         client.upload_file.assert_called_once()
-        assert "/files/99?wrap=1" in html
+        assert 'src="https://canvas.example.com/courses/123/files/99/preview"' in html
 
     def test_force_still_dedupes(self, uploader, tmp_path: Path):
         # Assets are content-addressed: even with --force, an identical file
@@ -146,4 +146,73 @@ class TestAssetDedupe:
         html = uploader.uploader._prepare_content(page)
         client.find_existing_file.assert_not_called()
         client.upload_file.assert_not_called()
-        assert "/files/7?wrap=1" in html
+        assert 'src="https://canvas.example.com/courses/123/files/7/preview"' in html
+
+    def test_image_with_empty_alt_is_uploaded(self, uploader, tmp_path):
+        # Regression: "![](img.png)" was skipped (pattern required alt text),
+        # leaving the local relative path in the Canvas page.
+        (tmp_path / "img.png").write_bytes(b"png-bytes")
+        page = uploader.page("page.md", "![](img.png)\n")
+
+        client = uploader.uploader.client
+        client.find_existing_file.return_value = None
+        client.upload_file.return_value = (
+            "https://canvas.example.com/courses/123/files/5?wrap=1"
+        )
+
+        html = uploader.uploader._prepare_content(page)
+        client.upload_file.assert_called_once()
+        assert 'src="https://canvas.example.com/courses/123/files/5/preview"' in html
+        assert 'src="img.png"' not in html
+
+    def test_image_src_uses_preview_but_link_keeps_wrap(self, uploader, tmp_path):
+        # Regression: an <img src> pointing at "?wrap=1" gets Canvas's HTML
+        # preview page instead of the image bytes, so the image is invisible.
+        # Images must use /preview; plain file links keep ?wrap=1.
+        (tmp_path / "img.png").write_bytes(b"png-bytes")
+        (tmp_path / "notes.pdf").write_bytes(b"pdf-bytes")
+        page = uploader.page("page.md", "![pic](img.png)\n\n[notes](notes.pdf)\n")
+
+        client = uploader.uploader.client
+        client.find_existing_file.return_value = None
+        client.upload_file.side_effect = [
+            "https://canvas.example.com/courses/123/files/1?wrap=1",
+            "https://canvas.example.com/courses/123/files/2?wrap=1",
+        ]
+
+        html = uploader.uploader._prepare_content(page)
+        assert 'src="https://canvas.example.com/courses/123/files/1/preview"' in html
+        assert "files/1?wrap=1" not in html
+        assert 'href="https://canvas.example.com/courses/123/files/2?wrap=1"' in html
+        # the cache keeps the canonical URL; conversion happens at render time
+        assert uploader.uploader.files_cache["img.png"]["canvas_url"].endswith(
+            "/files/1?wrap=1"
+        )
+
+
+class TestRebaseUrlHost:
+    def test_swaps_scheme_and_host_keeps_path_and_query(self):
+        url = "https://chalmers.instructure.com/courses/41536/files/7?wrap=1"
+        assert (
+            rebase_url_host(url, "https://canvas.chalmers.se")
+            == "https://canvas.chalmers.se/courses/41536/files/7?wrap=1"
+        )
+
+    def test_relative_url_unchanged(self):
+        assert rebase_url_host("img.png", "https://canvas.chalmers.se") == "img.png"
+
+    def test_cached_asset_with_old_host_is_rebased(self, uploader, tmp_path):
+        image = tmp_path / "img.png"
+        image.write_bytes(b"png-bytes")
+        page = uploader.page("page.md", "![pic](img.png)\n")
+        uploader.uploader.files_cache["img.png"] = {
+            "hash": compute_file_hash(image),
+            "canvas_url": "https://old.example.com/courses/123/files/7?wrap=1",
+        }
+
+        html = uploader.uploader._prepare_content(page)
+        assert 'src="https://canvas.example.com/courses/123/files/7/preview"' in html
+        # the cache entry is healed too
+        assert uploader.uploader.files_cache["img.png"]["canvas_url"] == (
+            "https://canvas.example.com/courses/123/files/7?wrap=1"
+        )

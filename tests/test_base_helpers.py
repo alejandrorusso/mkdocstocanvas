@@ -5,13 +5,23 @@ from unittest.mock import MagicMock
 
 import pytest
 import typer
+from rich.console import Console
 
+from mkdocstocanvas.uploaders import base
 from mkdocstocanvas.uploaders.base import (
     delete_all_items,
     make_progress,
     print_results_summary,
     require_connection,
 )
+
+
+@pytest.fixture(autouse=True)
+def plain_consoles(monkeypatch):
+    """Use colorless consoles so output assertions don't depend on the
+    environment (e.g. FORCE_COLOR makes Rich emit ANSI codes into capsys)."""
+    monkeypatch.setattr(base, "console", Console(force_terminal=False))
+    monkeypatch.setattr(base, "err_console", Console(stderr=True, force_terminal=False))
 
 
 @pytest.fixture

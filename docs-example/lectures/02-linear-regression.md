@@ -103,6 +103,7 @@ $$
 ```python
 import numpy as np
 
+
 def normal_equation(X, y):
     """
     Compute the closed-form solution for linear regression.
@@ -123,9 +124,12 @@ def normal_equation(X, y):
     X_with_intercept = np.c_[np.ones(X.shape[0]), X]
 
     # Compute (X^T X)^{-1} X^T y
-    theta = np.linalg.inv(X_with_intercept.T @ X_with_intercept) @ X_with_intercept.T @ y
+    theta = (
+        np.linalg.inv(X_with_intercept.T @ X_with_intercept) @ X_with_intercept.T @ y
+    )
 
     return theta
+
 
 # Example usage
 X = np.array([[1], [2], [3], [4], [5]])
@@ -173,13 +177,13 @@ def batch_gradient_descent(X, y, learning_rate=0.01, iterations=1000):
 
     for i in range(iterations):
         # Compute gradient using all samples
-        gradient = (1/n) * X.T @ (X @ theta - y)
+        gradient = (1 / n) * X.T @ (X @ theta - y)
 
         # Update parameters
         theta -= learning_rate * gradient
 
         # Track loss
-        loss = (1/(2*n)) * np.sum((X @ theta - y)**2)
+        loss = (1 / (2 * n)) * np.sum((X @ theta - y) ** 2)
         loss_history.append(loss)
 
     return theta, loss_history
@@ -209,7 +213,7 @@ def stochastic_gradient_descent(X, y, learning_rate=0.01, epochs=100):
             theta -= learning_rate * gradient
 
         # Track loss after each epoch
-        loss = (1/(2*n)) * np.sum((X @ theta - y)**2)
+        loss = (1 / (2 * n)) * np.sum((X @ theta - y) ** 2)
         loss_history.append(loss)
 
     return theta, loss_history
@@ -235,18 +239,18 @@ def mini_batch_gradient_descent(X, y, batch_size=32, learning_rate=0.01, epochs=
 
         # Process in mini-batches
         for i in range(0, n, batch_size):
-            X_batch = X_shuffled[i:i+batch_size]
-            y_batch = y_shuffled[i:i+batch_size]
+            X_batch = X_shuffled[i : i + batch_size]
+            y_batch = y_shuffled[i : i + batch_size]
             batch_n = len(X_batch)
 
             # Compute gradient on mini-batch
-            gradient = (1/batch_n) * X_batch.T @ (X_batch @ theta - y_batch)
+            gradient = (1 / batch_n) * X_batch.T @ (X_batch @ theta - y_batch)
 
             # Update parameters
             theta -= learning_rate * gradient
 
         # Track loss after each epoch
-        loss = (1/(2*n)) * np.sum((X @ theta - y)**2)
+        loss = (1 / (2 * n)) * np.sum((X @ theta - y) ** 2)
         loss_history.append(loss)
 
     return theta, loss_history
@@ -351,8 +355,8 @@ where $\bar{y} = \frac{1}{n}\sum_{i=1}^{n} y_i$ is the mean of $y$.
 ```python
 def r2_score(y_true, y_pred):
     """Compute R² score."""
-    ss_res = np.sum((y_true - y_pred)**2)
-    ss_tot = np.sum((y_true - np.mean(y_true))**2)
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
     return 1 - (ss_res / ss_tot)
 ```
 
@@ -424,27 +428,27 @@ plt.figure(figsize=(12, 4))
 
 # Plot 1: Data and fitted line
 plt.subplot(1, 2, 1)
-plt.scatter(X_train, y_train, alpha=0.5, label='Training data')
-plt.scatter(X_test, y_test, alpha=0.5, label='Test data')
+plt.scatter(X_train, y_train, alpha=0.5, label="Training data")
+plt.scatter(X_test, y_test, alpha=0.5, label="Test data")
 X_line = np.linspace(X.min(), X.max(), 100).reshape(-1, 1)
 X_line_with_intercept = np.c_[np.ones(len(X_line)), X_line]
 y_line = X_line_with_intercept @ theta_gd
-plt.plot(X_line, y_line, 'r-', label='Fitted line')
-plt.xlabel('X')
-plt.ylabel('y')
+plt.plot(X_line, y_line, "r-", label="Fitted line")
+plt.xlabel("X")
+plt.ylabel("y")
 plt.legend()
-plt.title('Linear Regression Fit')
+plt.title("Linear Regression Fit")
 
 # Plot 2: Loss history
 plt.subplot(1, 2, 2)
 plt.plot(loss_history)
-plt.xlabel('Iteration')
-plt.ylabel('Loss')
-plt.title('Training Loss over Iterations')
+plt.xlabel("Iteration")
+plt.ylabel("Loss")
+plt.title("Training Loss over Iterations")
 plt.grid(True)
 
 plt.tight_layout()
-plt.savefig('linear_regression_results.png')
+plt.savefig("linear_regression_results.png")
 plt.show()
 ```
 

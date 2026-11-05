@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
 
+
 def load_data():
     """
     Load and split the California housing dataset.
@@ -269,8 +270,8 @@ class LinearRegressionGD:
     def score(self, X, y):
         """Compute R² score."""
         y_pred = self.predict(X)
-        ss_res = np.sum((y - y_pred)**2)
-        ss_tot = np.sum((y - np.mean(y))**2)
+        ss_res = np.sum((y - y_pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
         return 1 - (ss_res / ss_tot)
 ```
 
@@ -335,7 +336,7 @@ class LinearRegressionMiniBatchGD:
 
             # Compute loss for entire dataset
             y_pred = self.predict(X)
-            loss = np.mean((y - y_pred)**2)
+            loss = np.mean((y - y_pred) ** 2)
             self.loss_history.append(loss)
 
             if epoch % 10 == 0:
@@ -348,8 +349,8 @@ class LinearRegressionMiniBatchGD:
     def score(self, X, y):
         """Compute R² score."""
         y_pred = self.predict(X)
-        ss_res = np.sum((y - y_pred)**2)
-        ss_tot = np.sum((y - np.mean(y))**2)
+        ss_res = np.sum((y - y_pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
         return 1 - (ss_res / ss_tot)
 ```
 
@@ -411,8 +412,8 @@ class RidgeRegression:
     def score(self, X, y):
         """Compute R² score."""
         y_pred = self.predict(X)
-        ss_res = np.sum((y - y_pred)**2)
-        ss_tot = np.sum((y - np.mean(y))**2)
+        ss_res = np.sum((y - y_pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
         return 1 - (ss_res / ss_tot)
 ```
 
@@ -446,18 +447,20 @@ def analyze_regularization():
         train_scores.append(train_score)
         test_scores.append(test_score)
 
-        print(f"Alpha = {alpha:.3f}: Train R² = {train_score:.4f}, Test R² = {test_score:.4f}")
+        print(
+            f"Alpha = {alpha:.3f}: Train R² = {train_score:.4f}, Test R² = {test_score:.4f}"
+        )
 
     # TODO: Plot results
     plt.figure(figsize=(10, 6))
-    plt.semilogx(alphas, train_scores, 'o-', label='Training')
-    plt.semilogx(alphas, test_scores, 's-', label='Test')
-    plt.xlabel('Regularization Strength (α)', fontsize=12)
-    plt.ylabel('R² Score', fontsize=12)
-    plt.title('Effect of Regularization on Model Performance', fontsize=14)
+    plt.semilogx(alphas, train_scores, "o-", label="Training")
+    plt.semilogx(alphas, test_scores, "s-", label="Test")
+    plt.xlabel("Regularization Strength (α)", fontsize=12)
+    plt.ylabel("R² Score", fontsize=12)
+    plt.title("Effect of Regularization on Model Performance", fontsize=14)
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig('regularization_analysis.png', dpi=150, bbox_inches='tight')
+    plt.savefig("regularization_analysis.png", dpi=150, bbox_inches="tight")
     plt.show()
 ```
 
@@ -504,11 +507,11 @@ def compare_methods():
     # TODO: Train and evaluate
 
     # TODO: Create comparison table
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Model Comparison")
-    print("="*60)
+    print("=" * 60)
     print(f"{'Method':<30} {'Train R²':<12} {'Test R²':<12}")
-    print("-"*60)
+    print("-" * 60)
     # Print results...
 
     return results
@@ -533,20 +536,20 @@ def plot_loss_curves(model_gd, model_mb):
 
     plt.subplot(1, 2, 1)
     # TODO: Plot batch GD loss
-    plt.xlabel('Iteration')
-    plt.ylabel('Loss (MSE)')
-    plt.title('Batch Gradient Descent')
+    plt.xlabel("Iteration")
+    plt.ylabel("Loss (MSE)")
+    plt.title("Batch Gradient Descent")
     plt.grid(True, alpha=0.3)
 
     plt.subplot(1, 2, 2)
     # TODO: Plot mini-batch GD loss
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss (MSE)')
-    plt.title('Mini-Batch Gradient Descent')
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss (MSE)")
+    plt.title("Mini-Batch Gradient Descent")
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig('loss_comparison.png', dpi=150, bbox_inches='tight')
+    plt.savefig("loss_comparison.png", dpi=150, bbox_inches="tight")
     plt.show()
 ```
 
@@ -578,10 +581,10 @@ def plot_feature_importance(model, feature_names):
     plt.figure(figsize=(10, 8))
     plt.barh(range(len(sorted_importance)), sorted_importance)
     plt.yticks(range(len(sorted_features)), sorted_features)
-    plt.xlabel('|Coefficient|', fontsize=12)
-    plt.title('Feature Importance', fontsize=14)
+    plt.xlabel("|Coefficient|", fontsize=12)
+    plt.title("Feature Importance", fontsize=14)
     plt.tight_layout()
-    plt.savefig('feature_importance.png', dpi=150, bbox_inches='tight')
+    plt.savefig("feature_importance.png", dpi=150, bbox_inches="tight")
     plt.show()
 ```
 

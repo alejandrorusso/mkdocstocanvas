@@ -26,6 +26,8 @@ The cache is what makes re-runs cheap and keeps links between pages pointing at 
 
 ## Incremental page uploads
 
+`upload-pages` uploads every page in the `mkdocs.yml` nav, plus any markdown file under `docs/` that a nav page or lab links to (transitively) even if it is not in the nav. Such pages get an ownership marker like any other page but are not added to modules. Links to missing files are reported as warnings.
+
 `upload-pages` only sends what actually changed:
 
 1. **Changed files** (MD5 differs from the cache, or new) are uploaded.

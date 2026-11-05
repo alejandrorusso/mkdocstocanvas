@@ -45,9 +45,11 @@ Properties:
 ```python
 import numpy as np
 
+
 def sigmoid(z):
     """Sigmoid activation function."""
     return 1 / (1 + np.exp(-z))
+
 
 def sigmoid_derivative(z):
     """Derivative of sigmoid function."""
@@ -72,9 +74,10 @@ def tanh(z):
     """Tanh activation function."""
     return np.tanh(z)
 
+
 def tanh_derivative(z):
     """Derivative of tanh function."""
-    return 1 - np.tanh(z)**2
+    return 1 - np.tanh(z) ** 2
 ```
 
 #### 3. ReLU (Rectified Linear Unit)
@@ -97,6 +100,7 @@ Properties:
 def relu(z):
     """ReLU activation function."""
     return np.maximum(0, z)
+
 
 def relu_derivative(z):
     """Derivative of ReLU function."""
@@ -187,7 +191,7 @@ class NeuralNetwork:
         A2 = sigmoid(Z2)  # For binary classification
 
         # Store values for backpropagation
-        cache = {'X': X, 'Z1': Z1, 'A1': A1, 'Z2': Z2, 'A2': A2}
+        cache = {"X": X, "Z1": Z1, "A1": A1, "Z2": Z2, "A2": A2}
 
         return A2, cache
 ```
@@ -257,27 +261,28 @@ def backward(self, cache, y, learning_rate=0.01):
     m = y.shape[0]  # Number of samples
 
     # Retrieve cached values
-    X = cache['X']
-    A1 = cache['A1']
-    A2 = cache['A2']
-    Z1 = cache['Z1']
+    X = cache["X"]
+    A1 = cache["A1"]
+    A2 = cache["A2"]
+    Z1 = cache["Z1"]
 
     # Output layer gradients
     dZ2 = A2 - y  # For binary cross-entropy with sigmoid
-    dW2 = (1/m) * A1.T @ dZ2
-    db2 = (1/m) * np.sum(dZ2, axis=0, keepdims=True)
+    dW2 = (1 / m) * A1.T @ dZ2
+    db2 = (1 / m) * np.sum(dZ2, axis=0, keepdims=True)
 
     # Hidden layer gradients
     dA1 = dZ2 @ self.W2.T
     dZ1 = dA1 * relu_derivative(Z1)
-    dW1 = (1/m) * X.T @ dZ1
-    db1 = (1/m) * np.sum(dZ1, axis=0, keepdims=True)
+    dW1 = (1 / m) * X.T @ dZ1
+    db1 = (1 / m) * np.sum(dZ1, axis=0, keepdims=True)
 
     # Update parameters
     self.W1 -= learning_rate * dW1
     self.b1 -= learning_rate * db1
     self.W2 -= learning_rate * dW2
     self.b2 -= learning_rate * db2
+
 
 # Add this method to the NeuralNetwork class
 NeuralNetwork.backward = backward
@@ -316,9 +321,7 @@ def binary_cross_entropy(y_true, y_pred, epsilon=1e-15):
     y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
 
     # Compute loss
-    loss = -np.mean(
-        y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred)
-    )
+    loss = -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
 
     return loss
 ```
@@ -410,6 +413,7 @@ def train(self, X, y, epochs=1000, learning_rate=0.01, verbose=True):
 
     return loss_history
 
+
 # Add this method to the NeuralNetwork class
 NeuralNetwork.train = train
 ```
@@ -422,12 +426,7 @@ The XOR problem is a classic example that cannot be solved by a linear classifie
 import matplotlib.pyplot as plt
 
 # XOR dataset
-X = np.array([
-    [0, 0],
-    [0, 1],
-    [1, 0],
-    [1, 1]
-])
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
 y = np.array([[0], [1], [1], [0]])  # XOR labels
 
 # Create and train network
@@ -445,28 +444,26 @@ plt.figure(figsize=(10, 4))
 
 plt.subplot(1, 2, 1)
 plt.plot(loss_history)
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.title('Training Loss')
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training Loss")
 plt.grid(True)
 
 # Plot decision boundary
 plt.subplot(1, 2, 2)
-xx, yy = np.meshgrid(np.linspace(-0.5, 1.5, 100),
-                     np.linspace(-0.5, 1.5, 100))
+xx, yy = np.meshgrid(np.linspace(-0.5, 1.5, 100), np.linspace(-0.5, 1.5, 100))
 Z, _ = nn.forward(np.c_[xx.ravel(), yy.ravel()])
 Z = Z.reshape(xx.shape)
 
-plt.contourf(xx, yy, Z, levels=20, cmap='RdYlBu', alpha=0.6)
-plt.scatter(X[:, 0], X[:, 1], c=y.ravel(), cmap='RdYlBu',
-           edgecolors='black', s=100)
-plt.xlabel('x₁')
-plt.ylabel('x₂')
-plt.title('Decision Boundary')
-plt.colorbar(label='Predicted Probability')
+plt.contourf(xx, yy, Z, levels=20, cmap="RdYlBu", alpha=0.6)
+plt.scatter(X[:, 0], X[:, 1], c=y.ravel(), cmap="RdYlBu", edgecolors="black", s=100)
+plt.xlabel("x₁")
+plt.ylabel("x₂")
+plt.title("Decision Boundary")
+plt.colorbar(label="Predicted Probability")
 
 plt.tight_layout()
-plt.savefig('xor_neural_network.png')
+plt.savefig("xor_neural_network.png")
 plt.show()
 ```
 

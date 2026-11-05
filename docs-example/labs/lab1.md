@@ -36,6 +36,7 @@ Create a Python function that performs the following operations:
 ```python
 import numpy as np
 
+
 def array_operations():
     """
     Perform basic NumPy array operations.
@@ -61,11 +62,11 @@ def array_operations():
     max_idx = None
 
     return {
-        'array': arr,
-        'matrix': matrix,
-        'row_means': row_means,
-        'col_stds': col_stds,
-        'max_idx': max_idx
+        "array": arr,
+        "matrix": matrix,
+        "row_means": row_means,
+        "col_stds": col_stds,
+        "max_idx": max_idx,
     }
 ```
 
@@ -106,10 +107,10 @@ def matrix_operations(A, B):
     frobenius_norm = None
 
     return {
-        'matrix_product': C,
-        'elementwise_product': elementwise,
-        'transpose': A_T,
-        'frobenius_norm': frobenius_norm
+        "matrix_product": C,
+        "elementwise_product": elementwise,
+        "transpose": A_T,
+        "frobenius_norm": frobenius_norm,
     }
 ```
 
@@ -155,6 +156,7 @@ Create visualizations of mathematical functions:
 ```python
 import matplotlib.pyplot as plt
 
+
 def plot_functions():
     """
     Plot various activation functions used in machine learning.
@@ -174,23 +176,23 @@ def plot_functions():
     plt.figure(figsize=(10, 6))
 
     # TODO: Plot sigmoid
-    plt.plot(x, sigmoid, label='Sigmoid', linewidth=2)
+    plt.plot(x, sigmoid, label="Sigmoid", linewidth=2)
 
     # TODO: Plot tanh
-    plt.plot(x, tanh, label='Tanh', linewidth=2)
+    plt.plot(x, tanh, label="Tanh", linewidth=2)
 
     # TODO: Plot ReLU
-    plt.plot(x, relu, label='ReLU', linewidth=2)
+    plt.plot(x, relu, label="ReLU", linewidth=2)
 
-    plt.xlabel('x', fontsize=12)
-    plt.ylabel('f(x)', fontsize=12)
-    plt.title('Common Activation Functions', fontsize=14)
+    plt.xlabel("x", fontsize=12)
+    plt.ylabel("f(x)", fontsize=12)
+    plt.title("Common Activation Functions", fontsize=14)
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.axhline(y=0, color='k', linestyle='-', linewidth=0.5)
-    plt.axvline(x=0, color='k', linestyle='-', linewidth=0.5)
+    plt.axhline(y=0, color="k", linestyle="-", linewidth=0.5)
+    plt.axvline(x=0, color="k", linestyle="-", linewidth=0.5)
 
-    plt.savefig('activation_functions.png', dpi=150, bbox_inches='tight')
+    plt.savefig("activation_functions.png", dpi=150, bbox_inches="tight")
     plt.show()
 ```
 
@@ -206,7 +208,7 @@ def visualize_data_distribution():
     # Generate synthetic data
     np.random.seed(42)
     X = np.random.randn(200, 2)
-    y = (X[:, 0]**2 + X[:, 1]**2 > 1).astype(int)
+    y = (X[:, 0] ** 2 + X[:, 1] ** 2 > 1).astype(int)
 
     # TODO: Create a 2x2 subplot
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -224,7 +226,7 @@ def visualize_data_distribution():
     # axes[1, 1].hist2d(...)
 
     plt.tight_layout()
-    plt.savefig('data_distribution.png', dpi=150, bbox_inches='tight')
+    plt.savefig("data_distribution.png", dpi=150, bbox_inches="tight")
     plt.show()
 ```
 
@@ -252,9 +254,9 @@ def plot_loss_curves():
     # plt.plot(...)
 
     # Add labels and formatting
-    plt.xlabel('Epoch', fontsize=12)
-    plt.ylabel('Loss', fontsize=12)
-    plt.title('Training vs Validation Loss', fontsize=14)
+    plt.xlabel("Epoch", fontsize=12)
+    plt.ylabel("Loss", fontsize=12)
+    plt.title("Training vs Validation Loss", fontsize=14)
     plt.legend()
     plt.grid(True, alpha=0.3)
 
@@ -263,7 +265,7 @@ def plot_loss_curves():
     # plt.axvline(...)
     # plt.scatter(...)
 
-    plt.savefig('loss_curves.png', dpi=150, bbox_inches='tight')
+    plt.savefig("loss_curves.png", dpi=150, bbox_inches="tight")
     plt.show()
 ```
 
@@ -305,12 +307,12 @@ def compute_statistics(data):
     iqr = None
 
     return {
-        'mean': mean,
-        'median': median,
-        'std': std,
-        'q25': q25,
-        'q75': q75,
-        'iqr': iqr
+        "mean": mean,
+        "median": median,
+        "std": std,
+        "q25": q25,
+        "q75": q75,
+        "iqr": iqr,
     }
 ```
 
@@ -339,19 +341,25 @@ def correlation_analysis():
 
     # TODO: Create a heatmap of the correlation matrix
     plt.figure(figsize=(8, 6))
-    plt.imshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
-    plt.colorbar(label='Correlation')
-    plt.xticks([0, 1, 2], ['X1', 'X2', 'X3'])
-    plt.yticks([0, 1, 2], ['X1', 'X2', 'X3'])
-    plt.title('Feature Correlation Matrix')
+    plt.imshow(corr_matrix, cmap="coolwarm", vmin=-1, vmax=1)
+    plt.colorbar(label="Correlation")
+    plt.xticks([0, 1, 2], ["X1", "X2", "X3"])
+    plt.yticks([0, 1, 2], ["X1", "X2", "X3"])
+    plt.title("Feature Correlation Matrix")
 
     # Add correlation values as text
     for i in range(3):
         for j in range(3):
-            plt.text(j, i, f'{corr_matrix[i, j]:.2f}',
-                    ha='center', va='center', color='black')
+            plt.text(
+                j,
+                i,
+                f"{corr_matrix[i, j]:.2f}",
+                ha="center",
+                va="center",
+                color="black",
+            )
 
-    plt.savefig('correlation_matrix.png', dpi=150, bbox_inches='tight')
+    plt.savefig("correlation_matrix.png", dpi=150, bbox_inches="tight")
     plt.show()
 
     return corr_matrix
@@ -365,6 +373,7 @@ Compare loop-based vs. vectorized implementations:
 
 ```python
 import time
+
 
 def euclidean_distance_loop(X, Y):
     """
@@ -389,9 +398,10 @@ def euclidean_distance_loop(X, Y):
     # TODO: Implement using nested loops
     for i in range(n):
         for j in range(m):
-            distances[i, j] = np.sqrt(np.sum((X[i] - Y[j])**2))
+            distances[i, j] = np.sqrt(np.sum((X[i] - Y[j]) ** 2))
 
     return distances
+
 
 def euclidean_distance_vectorized(X, Y):
     """
@@ -415,11 +425,12 @@ def euclidean_distance_vectorized(X, Y):
 
     X_sq = None  # Shape: (n, 1)
     Y_sq = None  # Shape: (1, m)
-    XY = None    # Shape: (n, m)
+    XY = None  # Shape: (n, m)
 
     distances = None
 
     return distances
+
 
 def compare_implementations():
     """Compare timing of loop vs vectorized implementations."""
@@ -456,6 +467,7 @@ Implement batch processing for a simple operation:
 def sigmoid(z):
     """Sigmoid function."""
     return 1 / (1 + np.exp(-z))
+
 
 def process_batch(X, W, b):
     """

@@ -11,6 +11,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 
 import typer
 from rich.console import Console
@@ -176,7 +177,7 @@ _MD_LINK_PATTERN = re.compile(
 
 # Matches optional leading '!', [alt/text], and (path) — for assets
 _ASSET_PATTERN = re.compile(
-    r'(!)?\[([^\]]+)\]\(\s*([^\s\)]+)(?:\s+(?:"[^"]*"|\'[^\']*\'))?\s*\)',
+    r'(!)?\[([^\]]*)\]\(\s*([^\s\)]+)(?:\s+(?:"[^"]*"|\'[^\']*\'))?\s*\)',
 )
 
 
@@ -315,7 +316,8 @@ class ContentUploader:
             # identical file by hash. Only a true miss triggers an upload.
             # (--force only skips the local cache entry, not the dedupe.)
             if cached and cached.get("hash") == current_hash and not self.force:
-                canvas_url = cached["canvas_url"]
+                canvas_url = self._current_host_url(cached["canvas_url"])
+                cached["canvas_url"] = canvas_url
             else:
                 canvas_url = None
                 # Skip re-uploading if an identical file already exists in
@@ -344,7 +346,7 @@ class ContentUploader:
 
             if canvas_url:
                 if is_image:
-                    return f'<img src="{canvas_url}" alt="{text}" />'
+                    return f'<img src="{_canvas_image_src(canvas_url)}" alt="{text}" />'
                 return f"[{text}]({canvas_url})"
 
             return match.group(0)
@@ -374,11 +376,23 @@ class ContentUploader:
 
             info = self.pages_cache.get(rel)
             if info and info.get("canvas_url"):
-                return f"[{text}]({info['canvas_url']}{anchor})"
+                url = self._current_host_url(info["canvas_url"])
+                return f"[{text}]({url}{anchor})"
 
             return match.group(0)
 
         return _MD_LINK_PATTERN.sub(replace_md_link, md_page.content)
+
+    def _current_host_url(self, canvas_url: str) -> str:
+        """
+        Point a cached Canvas URL at the configured CANVAS_BASE_URL host.
+
+        The cache outlives config changes (e.g. the CI cache keeps it when
+        CANVAS_BASE_URL is switched to another domain for the same Canvas),
+        so cached URLs may carry an old host. Only scheme + host are swapped;
+        the course/page/file path is kept as is.
+        """
+        return rebase_url_host(canvas_url, self.client.base_url)
 
     def _rebuild_cache_if_empty(self) -> None:
         """Rebuild the cache from Canvas when it is missing or empty."""
@@ -391,6 +405,28 @@ class ContentUploader:
         self.pages_cache = rebuilt["pages"]
         self.files_cache = rebuilt["files"]
         self.modules_cache = rebuilt["modules"]
+
+
+def rebase_url_host(url: str, base_url: str) -> str:
+    """Return *url* with its scheme and host replaced by those of *base_url*."""
+    base = urlsplit(base_url)
+    parts = urlsplit(url)
+    if not base.netloc or not parts.netloc:
+        return url
+    return urlunsplit(parts._replace(scheme=base.scheme, netloc=base.netloc))
+
+
+def _canvas_image_src(canvas_url: str) -> str:
+    """
+    Turn a cached file URL into one usable as an ``<img src>``.
+
+    ``/files/{id}?wrap=1`` serves Canvas's HTML preview page (right for
+    links, but renders nothing in an ``<img>``); ``/files/{id}/preview``
+    serves the image bytes, matching what Canvas's own editor inserts.
+    """
+    if canvas_url.endswith("?wrap=1"):
+        return canvas_url.removesuffix("?wrap=1") + "/preview"
+    return canvas_url
 
 
 def _canvas_file_url(client: CanvasUploader, file_id: int) -> str:
@@ -514,7 +550,9 @@ def rebuild_cache_from_canvas(
                 links[link_rel] = target["canvas_url"]
         info["resolved_md_links"] = links
 
-    pages_found = sum(1 for i in pages_cache.values() if "canvas_assignment_id" not in i)
+    pages_found = sum(
+        1 for i in pages_cache.values() if "canvas_assignment_id" not in i
+    )
     labs_found = len(pages_cache) - pages_found
     console.print(
         f"[green]✓ Rebuilt cache:[/green] {pages_found} page(s)/syllabus, "

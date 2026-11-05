@@ -185,7 +185,10 @@ class ModuleUploader(ContentUploader):
             # are added like any other page.
             if is_lab_rel_path(md_path):
                 continue
-            if self.syllabus_rel_path and Path(md_path).as_posix() == self.syllabus_rel_path:
+            if (
+                self.syllabus_rel_path
+                and Path(md_path).as_posix() == self.syllabus_rel_path
+            ):
                 if self.verbose:
                     console.print(
                         f"    [dim]Skipping syllabus page in module: {md_path}[/dim]"
