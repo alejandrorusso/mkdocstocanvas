@@ -7,6 +7,7 @@ from openpyxl import Workbook
 from mkdocstocanvas.processing.excel import (
     apply_tint,
     color_to_hex,
+    find_excel_dependencies,
     get_theme_colors,
     process_excel_macros,
     render_excel_sheet_to_html,
@@ -134,3 +135,27 @@ class TestProcessExcelMacros:
         md = tmp_path / "page.md"
         md.write_text("No macros here")
         assert process_excel_macros("No macros here", md) == "No macros here"
+
+
+class TestFindExcelDependencies:
+    def test_no_macros(self, tmp_path: Path):
+        assert find_excel_dependencies("No macros here", tmp_path / "page.md") == []
+
+    def test_resolved_relative_to_markdown_dir(self, tmp_path: Path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        content = "{{ render_excel_sheet('../data.xlsx', 'Sheet') }}"
+        assert find_excel_dependencies(content, sub / "page.md") == [
+            (tmp_path / "data.xlsx").resolve()
+        ]
+
+    def test_deduplicated_across_sheets(self, tmp_path: Path):
+        content = (
+            "{{ render_excel_sheet('./a.xlsx', 'One') }}\n"
+            "{{ render_excel_sheet('./a.xlsx', 'Two') }}\n"
+            "{{ render_excel_sheet('./b.xlsx') }}"
+        )
+        assert find_excel_dependencies(content, tmp_path / "page.md") == [
+            (tmp_path / "a.xlsx").resolve(),
+            (tmp_path / "b.xlsx").resolve(),
+        ]

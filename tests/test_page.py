@@ -44,6 +44,52 @@ class TestMarkdownPage:
         assert page.md5 == expected
 
 
+class TestExcelDependencyHash:
+    """Spreadsheets rendered by render_excel_sheet are part of the page hash."""
+
+    @pytest.fixture
+    def page_with_sheet(self, tmp_path):
+        xlsx = tmp_path / "schedule.xlsx"
+        xlsx.write_bytes(b"version 1")
+        md = tmp_path / "intro.md"
+        md.write_text("# Intro\n\n{{ render_excel_sheet('./schedule.xlsx', 'S') }}\n")
+        return md, xlsx
+
+    def test_changes_when_only_spreadsheet_changes(self, page_with_sheet):
+        md, xlsx = page_with_sheet
+        before = MarkdownPage(md, root_path=md.parent).md5
+
+        xlsx.write_bytes(b"version 2")
+
+        after = MarkdownPage(md, root_path=md.parent).md5
+        assert before is not None and after is not None
+        assert before != after
+
+    def test_stable_when_nothing_changes(self, page_with_sheet):
+        md, _ = page_with_sheet
+        first = MarkdownPage(md, root_path=md.parent).md5
+        assert first == MarkdownPage(md, root_path=md.parent).md5
+
+    def test_differs_from_plain_file_hash(self, page_with_sheet):
+        md, _ = page_with_sheet
+        page = MarkdownPage(md, root_path=md.parent)
+        assert page.md5 != hashlib.md5(md.read_bytes()).hexdigest()
+
+    def test_missing_spreadsheet_still_hashes(self, page_with_sheet):
+        md, xlsx = page_with_sheet
+        present = MarkdownPage(md, root_path=md.parent).md5
+        xlsx.unlink()
+
+        missing = MarkdownPage(md, root_path=md.parent).md5
+        assert missing is not None
+        assert missing != present
+
+    def test_unrelated_spreadsheet_is_ignored(self, md_file, tmp_path):
+        page = MarkdownPage(md_file[0], root_path=md_file[1])
+        (md_file[0].parent / "other.xlsx").write_bytes(b"data")
+        assert MarkdownPage(md_file[0], root_path=md_file[1]).md5 == page.md5
+
+
 class TestComputeFileHash:
     def test_missing_file_returns_none(self, tmp_path):
         assert compute_file_hash(tmp_path / "missing.md") is None

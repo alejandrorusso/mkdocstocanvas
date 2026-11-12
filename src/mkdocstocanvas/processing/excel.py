@@ -261,26 +261,44 @@ def render_excel_sheet_to_html(excel_path: Path, sheet_name: str | None = None) 
         return f"<p><em>Error rendering Excel sheet: {e!s}</em></p>"
 
 
+# {{ render_excel_sheet('./path/to/file.xlsx', 'SheetName') }}
+EXCEL_MACRO_PATTERN = re.compile(
+    r'\{\{\s*render_excel_sheet\([\'"]([^\'"]+)[\'"](?:,\s*[\'"]([^\'"]+)[\'"])?\)\s*\}\}'
+)
+
+
+def _resolve_excel_path(excel_path_str: str, markdown_file_path: Path) -> Path:
+    """Resolve a macro's spreadsheet path relative to the markdown file."""
+    excel_path = Path(excel_path_str)
+    if not excel_path.is_absolute():
+        excel_path = markdown_file_path.resolve().parent / excel_path
+    return excel_path.resolve()
+
+
+def find_excel_dependencies(content: str, markdown_file_path: Path) -> list[Path]:
+    """
+    Spreadsheets rendered into a page by its render_excel_sheet macros.
+
+    Returns resolved paths, deduplicated and sorted. The rendered page
+    depends on these files, so they must take part in change detection.
+    """
+    return sorted(
+        {
+            _resolve_excel_path(match.group(1), markdown_file_path)
+            for match in EXCEL_MACRO_PATTERN.finditer(content)
+        }
+    )
+
+
 def process_excel_macros(content: str, markdown_file_path: Path) -> str:
     """
     Process Excel rendering macros in markdown content.
     Replaces {{ render_excel_sheet('./path/to/file.xlsx', 'SheetName') }} with rendered HTML tables.
     """
-    markdown_dir = markdown_file_path.resolve().parent
-
-    pattern = r'\{\{\s*render_excel_sheet\([\'"]([^\'"]+)[\'"](?:,\s*[\'"]([^\'"]+)[\'"])?\)\s*\}\}'
 
     def replace_excel_macro(match):
-        excel_path_str = match.group(1)
         sheet_name = match.group(2) if match.group(2) else None
-
-        excel_path = Path(excel_path_str)
-
-        if not excel_path.is_absolute():
-            excel_path = markdown_dir / excel_path
-
-        excel_path = excel_path.resolve()
-
+        excel_path = _resolve_excel_path(match.group(1), markdown_file_path)
         return render_excel_sheet_to_html(excel_path, sheet_name)
 
-    return re.sub(pattern, replace_excel_macro, content)
+    return EXCEL_MACRO_PATTERN.sub(replace_excel_macro, content)

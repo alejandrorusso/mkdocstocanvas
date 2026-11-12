@@ -4,6 +4,8 @@ from pathlib import Path
 
 from rich.console import Console
 
+from ..processing.excel import find_excel_dependencies
+
 err_console = Console(stderr=True, style="bold red")
 
 
@@ -34,7 +36,7 @@ class MarkdownPage:
         self.rel_path = self.path.relative_to(root_path)
         self.title = self.get_title()
         self.content = self.get_content()
-        self.md5 = compute_file_hash(self.path)
+        self.md5 = self.compute_hash()
 
     def get_title(self) -> str:
         """Extract the first # header from a markdown file as the title"""
@@ -60,6 +62,34 @@ class MarkdownPage:
 
         # Strip leading H1 title; Canvas uses the page title separately
         return re.sub(r"^\s*#\s+.*\n", "", md_content, count=1)
+
+    def compute_hash(self) -> str | None:
+        """
+        Hash that changes whenever the rendered page would change.
+
+        For a page without render_excel_sheet macros this is the plain MD5
+        of the markdown file. Spreadsheets rendered into the page are part
+        of its output, so their contents are folded into the hash: editing
+        only the spreadsheet must still trigger a re-upload.
+        """
+        file_hash = compute_file_hash(self.path)
+        if file_hash is None:
+            return None
+
+        dependencies = find_excel_dependencies(self.content, self.path)
+        if not dependencies:
+            return file_hash
+
+        combined = hashlib.md5(file_hash.encode())
+        for dependency in dependencies:
+            try:
+                dependency_hash = hashlib.md5(dependency.read_bytes()).hexdigest()
+            except OSError:
+                # Rendering reports the missing file; here it only needs a
+                # stable value that changes once the file appears.
+                dependency_hash = "missing"
+            combined.update(f"\0{dependency.name}\0{dependency_hash}".encode())
+        return combined.hexdigest()
 
     def __repr__(self) -> str:
         return (

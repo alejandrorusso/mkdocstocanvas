@@ -30,7 +30,7 @@ The cache is what makes re-runs cheap and keeps links between pages pointing at 
 
 `upload-pages` only sends what actually changed:
 
-1. **Changed files** (MD5 differs from the cache, or new) are uploaded.
+1. **Changed files** (MD5 differs from the cache, or new) are uploaded. The hash covers the markdown file and any spreadsheet it renders with `{{ render_excel_sheet(...) }}`, so editing only the `.xlsx` re-uploads the page.
 2. **Unchanged files** are skipped and reported as "Skipped".
 3. A page is also re-uploaded when any of its resolved `.md` links now point to a different Canvas URL than at its last upload (e.g. a link target changed its slug).
 4. If an uploaded page's slug changed, pages that mention it are re-uploaded in a second pass so their links stay correct.
