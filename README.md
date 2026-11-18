@@ -252,7 +252,8 @@ example, publishing the same material to a second university:
 ```bash
 # Upload a WASP view (its own nav + labs) to another university's Canvas,
 # without touching your main .env or mkdocs.yml:
-mkdocstocanvas -c mkdocs.wasp.yml -e .env.kth --labs-dir wasp upload-all
+mkdocstocanvas -c mkdocs.wasp.yml -e .env.kth --labs-dir wasp \
+    --cache .canvas_upload_state.kth.json upload-all
 ```
 
 | Option | Default | Purpose |
@@ -260,9 +261,15 @@ mkdocstocanvas -c mkdocs.wasp.yml -e .env.kth --labs-dir wasp upload-all
 | `-c, --config PATH` | `mkdocs.yml` | mkdocs config whose nav drives pages & modules (also used by `serve`/`pdf`) |
 | `-e, --env-file PATH` | `./.env` | Canvas credentials file; its values override the environment |
 | `--labs-dir NAME` | `labs` | docs-relative directory holding lab files (`lab*.md`) |
+| `--cache PATH` | `.canvas_upload_state.json` | incremental upload-state file; use a distinct one per target |
 
 These are global options, so they go **before** the command. Each defaults to
 the previous behaviour, so existing single-target usage is unchanged.
+
+> **Important:** the upload cache is keyed by file path, not by Canvas course.
+> When driving two targets from the *same directory*, give each its own
+> `--cache` file — otherwise an incremental run for one target will skip or
+> mis-link pages it thinks are already uploaded to the other.
 
 If the upload cache is lost or deleted, run `mkdocstocanvas rebuild-cache` — see [Recovering a lost cache](documentation/HOW_IT_WORKS.md#recovering-a-lost-cache).
 

@@ -489,6 +489,7 @@ def parse_upload_all_pages(
     docs_root="docs",
     mkdocs_path="mkdocs.yml",
     labs_dir: str = "labs",
+    cache: str = ".canvas_upload_state.json",
     force: bool = False,
     verbose: bool = False,
 ):
@@ -522,6 +523,7 @@ def parse_upload_all_pages(
 
     uploader = PageUploader(
         client=client,
+        cache=cache,
         force=force,
         verbose=verbose,
         syllabus_rel_path=syllabus_rel_path,

@@ -147,6 +147,7 @@ def upload_all_labs(
     client: CanvasUploader,
     docs_root: str = "docs",
     labs_dir: str = "labs",
+    cache: str = ".canvas_upload_state.json",
     force: bool = False,
     verbose: bool = False,
 ) -> None:
@@ -162,7 +163,9 @@ def upload_all_labs(
         for f in lab_files:
             console.print(f"  [dim]{f}[/dim]")
 
-    LabUploader(client=client, force=force, verbose=verbose).upload_all(lab_files)
+    LabUploader(client=client, cache=cache, force=force, verbose=verbose).upload_all(
+        lab_files
+    )
 
 
 def _find_lab_assignments(
@@ -188,7 +191,11 @@ def _find_lab_assignments(
     ]
 
 
-def delete_all_labs(client: CanvasUploader, force: bool = False) -> None:
+def delete_all_labs(
+    client: CanvasUploader,
+    force: bool = False,
+    cache: str = ".canvas_upload_state.json",
+) -> None:
     """Delete all lab assignments from the Canvas course."""
     require_connection(client)
 
@@ -198,7 +205,9 @@ def delete_all_labs(client: CanvasUploader, force: bool = False) -> None:
     except requests.exceptions.RequestException as e:
         err_console.print(f"[bold red]Error listing assignments:[/bold red] {e}")
         raise typer.Exit(1) from e
-    labs = _find_lab_assignments(all_assignments, LabUploader(client).pages_cache)
+    labs = _find_lab_assignments(
+        all_assignments, LabUploader(client, cache=cache).pages_cache
+    )
 
     delete_all_items(
         labs,

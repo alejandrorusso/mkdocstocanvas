@@ -91,3 +91,33 @@ def test_config_threaded_to_modules(monkeypatch):
     )
     assert result.exit_code == 0, result.output
     assert captured == {"mkdocs_path": "mkdocs.wasp.yml", "labs_dir": "wasp"}
+
+
+def test_cache_threaded_to_pages(monkeypatch):
+    captured = {}
+    _stub_client(monkeypatch)
+
+    def fake_parse(client, cache=".canvas_upload_state.json", **kw):
+        captured["cache"] = cache
+
+    monkeypatch.setattr(cli, "parse_upload_all_pages", fake_parse)
+
+    result = runner.invoke(
+        cli.app, ["--cache", ".canvas_upload_state.kth.json", "upload-pages"]
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["cache"] == ".canvas_upload_state.kth.json"
+
+
+def test_default_cache_unchanged(monkeypatch):
+    captured = {}
+    _stub_client(monkeypatch)
+
+    def fake_parse(client, cache=".canvas_upload_state.json", **kw):
+        captured["cache"] = cache
+
+    monkeypatch.setattr(cli, "parse_upload_all_pages", fake_parse)
+
+    result = runner.invoke(cli.app, ["upload-pages"])
+    assert result.exit_code == 0, result.output
+    assert captured["cache"] == ".canvas_upload_state.json"
