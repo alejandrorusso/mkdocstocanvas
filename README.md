@@ -242,6 +242,28 @@ The upload detects changed files by MD5 hash, updates existing Canvas pages (pre
 mkdocstocanvas upload-pages --force     # also overwrites manual edits made in Canvas
 ```
 
+### Multiple courses, views or Canvas targets from one repo
+
+By default a command reads `./mkdocs.yml`, `./docs/` and `./.env` from the
+current directory. Global options let you point the same repo at a different
+site (a trimmed *view* of the course) and/or a different Canvas course — for
+example, publishing the same material to a second university:
+
+```bash
+# Upload a WASP view (its own nav + labs) to another university's Canvas,
+# without touching your main .env or mkdocs.yml:
+mkdocstocanvas -c mkdocs.wasp.yml -e .env.kth --labs-dir wasp upload-all
+```
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `-c, --config PATH` | `mkdocs.yml` | mkdocs config whose nav drives pages & modules (also used by `serve`/`pdf`) |
+| `-e, --env-file PATH` | `./.env` | Canvas credentials file; its values override the environment |
+| `--labs-dir NAME` | `labs` | docs-relative directory holding lab files (`lab*.md`) |
+
+These are global options, so they go **before** the command. Each defaults to
+the previous behaviour, so existing single-target usage is unchanged.
+
 If the upload cache is lost or deleted, run `mkdocstocanvas rebuild-cache` — see [Recovering a lost cache](documentation/HOW_IT_WORKS.md#recovering-a-lost-cache).
 
 ## Documentation
