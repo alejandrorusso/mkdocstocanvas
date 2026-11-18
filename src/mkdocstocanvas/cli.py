@@ -13,6 +13,7 @@ from .uploaders.base import rebuild_cache_from_canvas
 from .uploaders.labs import delete_all_labs, upload_all_labs
 from .uploaders.modules import delete_all_modules, upload_all_modules
 from .uploaders.pages import delete_all_pages, parse_upload_all_pages
+from .utils import config as utils_config
 
 app = typer.Typer(
     pretty_exceptions_short=False,
@@ -23,9 +24,45 @@ console = Console()
 
 
 @app.callback()
-def main(ctx: typer.Context):
-    """Uploads a mkdocs project to canvas."""
+def main(
+    ctx: typer.Context,
+    config: Annotated[
+        str,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to the mkdocs config file; its nav drives which pages "
+            "and modules are uploaded.",
+        ),
+    ] = "mkdocs.yml",
+    env_file: Annotated[
+        str | None,
+        typer.Option(
+            "--env-file",
+            "-e",
+            help="Path to the .env file with Canvas credentials. Its values "
+            "override the environment. Defaults to ./.env (then a parent .env).",
+        ),
+    ] = None,
+    labs_dir: Annotated[
+        str,
+        typer.Option(
+            "--labs-dir",
+            help="docs-relative directory holding lab files (lab*.md), uploaded "
+            "as Canvas assignments.",
+        ),
+    ] = "labs",
+):
+    """Uploads a mkdocs project to canvas.
+
+    The global options select which site and Canvas course a command acts on,
+    so several views/targets can live in one repo. Each defaults to the
+    previous single-target behaviour, so existing invocations are unchanged.
+    """
     ctx.ensure_object(dict)
+    ctx.obj["config"] = config
+    ctx.obj["env_file"] = env_file
+    ctx.obj["labs_dir"] = labs_dir
 
 
 def get_client(ctx: typer.Context) -> CanvasUploader:
@@ -37,13 +74,14 @@ def get_client(ctx: typer.Context) -> CanvasUploader:
     """
     client = ctx.obj.get("client")
     if client is None:
-        client = create_client()
+        client = create_client(env_file=ctx.obj.get("env_file"))
         ctx.obj["client"] = client
     return client
 
 
 @app.command()
 def serve(
+    ctx: typer.Context,
     host: Annotated[
         str, typer.Option("--host", help="Host address to bind to.")
     ] = "0.0.0.0",
@@ -65,7 +103,8 @@ def serve(
     Use --all-plugins for a complete build on every reload (e.g. to verify PDF output).
     """
     addr = f"{host}:{port}"
-    cmd = [sys.executable, "-m", "mkdocs", "serve", "-a", addr]
+    config = ctx.obj.get("config", "mkdocs.yml")
+    cmd = [sys.executable, "-m", "mkdocs", "serve", "-a", addr, "-f", config]
     if not all_plugins:
         cmd += ["--watch-theme", "--livereload"]
     mode = "all plugins" if all_plugins else "fast"
@@ -82,6 +121,7 @@ def serve(
 
 @app.command()
 def pdf(
+    ctx: typer.Context,
     output_dir: Annotated[
         Path,
         typer.Option(
@@ -102,6 +142,7 @@ def pdf(
     PDF generation requires a Playwright browser. If you see 'Browser not available'
     warnings and no PDFs are produced, run once with --install-browser.
     """
+    config = ctx.obj.get("config", "mkdocs.yml")
     if install_browser:
         console.print("[bold]Installing Playwright browser...[/bold]")
         result = subprocess.run(
@@ -113,17 +154,20 @@ def pdf(
         console.print("[green]✓ Browser installed.[/green]")
 
     console.print("[bold]Building MkDocs site...[/bold]")
-    result = subprocess.run([sys.executable, "-m", "mkdocs", "build", "--clean"])
+    result = subprocess.run(
+        [sys.executable, "-m", "mkdocs", "build", "--clean", "-f", config]
+    )
     if result.returncode != 0:
         console.print("[red]mkdocs build failed.[/red]")
         raise typer.Exit(result.returncode)
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    pdf_files = list(Path("site").rglob("*.pdf"))
+    site_dir = utils_config.parse_site_dir(Path(config))
+    pdf_files = list(Path(site_dir).rglob("*.pdf"))
     if not pdf_files:
         console.print(
-            "[yellow]No PDF files found in site/. "
+            f"[yellow]No PDF files found in {site_dir}/. "
             "If you see 'Browser not available' above, re-run with --install-browser.[/yellow]"
         )
     else:
@@ -191,7 +235,13 @@ def upload_pages(
     client: CanvasUploader = get_client(ctx)
     if force:
         typer.echo("Forcing upload. Ignoring cache.")
-    parse_upload_all_pages(client, force=force, verbose=verbose)
+    parse_upload_all_pages(
+        client,
+        mkdocs_path=ctx.obj.get("config", "mkdocs.yml"),
+        labs_dir=ctx.obj.get("labs_dir", "labs"),
+        force=force,
+        verbose=verbose,
+    )
 
 
 @app.command()
@@ -208,9 +258,15 @@ def upload_modules(
     Uploads modules.
     """
     if add_pdf:
-        pdf()
+        pdf(ctx)
 
-    upload_all_modules(get_client(ctx), add_pdf=add_pdf, verbose=verbose)
+    upload_all_modules(
+        get_client(ctx),
+        mkdocs_path=ctx.obj.get("config", "mkdocs.yml"),
+        labs_dir=ctx.obj.get("labs_dir", "labs"),
+        add_pdf=add_pdf,
+        verbose=verbose,
+    )
 
 
 @app.command()
@@ -226,7 +282,12 @@ def upload_labs(
     """
     Uploads labs as Canvas assignments.
     """
-    upload_all_labs(get_client(ctx), force=force, verbose=verbose)
+    upload_all_labs(
+        get_client(ctx),
+        labs_dir=ctx.obj.get("labs_dir", "labs"),
+        force=force,
+        verbose=verbose,
+    )
 
 
 @app.command()
@@ -311,7 +372,12 @@ def delete_modules(
     ] = False,
 ):
     """Deletes the modules uploaded by mkdocstocanvas (or ALL modules with --all)."""
-    delete_all_modules(get_client(ctx), force=force, all_items=all_items)
+    delete_all_modules(
+        get_client(ctx),
+        force=force,
+        all_items=all_items,
+        mkdocs_path=ctx.obj.get("config", "mkdocs.yml"),
+    )
 
 
 @app.command()

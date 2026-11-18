@@ -29,12 +29,14 @@ class ModuleUploader(ContentUploader):
         add_pdf: bool = False,
         verbose: bool = False,
         syllabus_rel_path: str | None = None,
+        labs_dir: str = "labs",
     ):
         super().__init__(client=client, cache=cache)
         self.docs_root = docs_root
         self.pdf_root = pdf_root
         self.add_pdf = add_pdf
         self.verbose = verbose
+        self.labs_dir = labs_dir
         self.syllabus_rel_path = (
             Path(syllabus_rel_path).as_posix() if syllabus_rel_path else None
         )
@@ -183,7 +185,7 @@ class ModuleUploader(ContentUploader):
             # Labs become Canvas assignments, not module items (see
             # labs.is_lab_rel_path). Files under labs/ that are not labs
             # are added like any other page.
-            if is_lab_rel_path(md_path):
+            if is_lab_rel_path(md_path, self.labs_dir):
                 continue
             if (
                 self.syllabus_rel_path
@@ -323,18 +325,19 @@ def upload_all_modules(
     docs_root: str = "docs",
     pdf_root: str = "pdf",
     mkdocs_path: str = "mkdocs.yml",
+    labs_dir: str = "labs",
     add_pdf: bool = False,
     verbose: bool = False,
 ) -> None:
-    """Parse mkdocs.yml and upload all sections as Canvas modules."""
+    """Parse the mkdocs config and upload all sections as Canvas modules."""
     mkdocs_path_obj = Path(mkdocs_path)
     if not mkdocs_path_obj.exists():
-        err_console.print("ERROR: mkdocs.yml not found")
+        err_console.print(f"ERROR: {mkdocs_path} not found")
         raise typer.Exit(1)
 
     sections = utils_config.parse_mkdocs_nav_sections(mkdocs_path_obj)
     if not sections:
-        err_console.print("No sections found in mkdocs.yml nav.")
+        err_console.print(f"No sections found in {mkdocs_path} nav.")
         raise typer.Exit(1)
 
     syllabus_rel_path = utils_config.parse_syllabus_nav_file(mkdocs_path_obj)
@@ -346,25 +349,29 @@ def upload_all_modules(
         add_pdf=add_pdf,
         verbose=verbose,
         syllabus_rel_path=syllabus_rel_path,
+        labs_dir=labs_dir,
     )
     uploader.upload_all(sections)
 
 
-def _section_names_from_mkdocs() -> set[str]:
-    """Nav section names from mkdocs.yml, for module-ownership matching.
+def _section_names_from_mkdocs(mkdocs_path: str = "mkdocs.yml") -> set[str]:
+    """Nav section names from the mkdocs config, for module-ownership matching.
 
-    Returns an empty set when mkdocs.yml is missing or unreadable; deleting
+    Returns an empty set when the config is missing or unreadable; deleting
     then relies on the upload cache alone.
     """
     try:
-        sections = utils_config.parse_mkdocs_nav_sections(Path("mkdocs.yml"))
+        sections = utils_config.parse_mkdocs_nav_sections(Path(mkdocs_path))
     except typer.Exit:
         return set()
     return {s["name"] for s in sections or []}
 
 
 def delete_all_modules(
-    client: CanvasUploader, force: bool = False, all_items: bool = False
+    client: CanvasUploader,
+    force: bool = False,
+    all_items: bool = False,
+    mkdocs_path: str = "mkdocs.yml",
 ) -> None:
     """
     Delete modules from the Canvas course.
@@ -383,7 +390,7 @@ def delete_all_modules(
 
     if not all_items:
         managed = ModuleUploader(client)._managed_modules(
-            modules, _section_names_from_mkdocs()
+            modules, _section_names_from_mkdocs(mkdocs_path)
         )
         skipped = len(modules) - len(managed)
         if skipped:

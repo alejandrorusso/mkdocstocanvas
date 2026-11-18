@@ -29,9 +29,11 @@ class PageUploader(ContentUploader):
         force: bool = False,
         verbose: bool = False,
         syllabus_rel_path: str | None = None,
+        labs_dir: str = "labs",
     ) -> None:
         super().__init__(client=client, cache=cache, force=force)
         self.verbose = verbose
+        self.labs_dir = labs_dir
         self.syllabus_rel_path = (
             Path(syllabus_rel_path).as_posix() if syllabus_rel_path else None
         )
@@ -332,7 +334,7 @@ class PageUploader(ContentUploader):
                 if link_rel in known:
                     continue
                 known.add(link_rel)
-                if is_lab_rel_path(link_rel):
+                if is_lab_rel_path(link_rel, self.labs_dir):
                     continue
                 target = page.root_path / link_rel
                 if not target.is_file():
@@ -419,7 +421,7 @@ class PageUploader(ContentUploader):
         for md_page in pages:  # pyright: ignore
             # Labs are uploaded as Canvas assignments, not pages. Other files
             # under labs/ are regular pages (see labs.is_lab_rel_path).
-            if is_lab_rel_path(md_page.rel_path):
+            if is_lab_rel_path(md_page.rel_path, self.labs_dir):
                 continue
 
             if not md_page.path.exists():
@@ -486,6 +488,7 @@ def parse_upload_all_pages(
     client: CanvasUploader,
     docs_root="docs",
     mkdocs_path="mkdocs.yml",
+    labs_dir: str = "labs",
     force: bool = False,
     verbose: bool = False,
 ):
@@ -511,7 +514,9 @@ def parse_upload_all_pages(
 
     markdown_pages = [MarkdownPage(docs_root / p, docs_root) for p in markdown_files]
     # Labs are not uploaded as pages, but pages they link to should be.
-    lab_pages = [MarkdownPage(p, docs_root) for p in find_lab_files(docs_root)]
+    lab_pages = [
+        MarkdownPage(p, docs_root) for p in find_lab_files(docs_root, labs_dir)
+    ]
 
     syllabus_rel_path = utils_config.parse_syllabus_nav_file(mkdocs_path)
 
@@ -520,6 +525,7 @@ def parse_upload_all_pages(
         force=force,
         verbose=verbose,
         syllabus_rel_path=syllabus_rel_path,
+        labs_dir=labs_dir,
     )
 
     uploader.upload_all_pages(markdown_pages, link_seeds=lab_pages)

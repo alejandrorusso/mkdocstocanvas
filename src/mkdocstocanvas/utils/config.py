@@ -99,6 +99,18 @@ def parse_mkdocs_nav_sections(mkdocs_path: Path) -> list[dict] | None:
     return sections or None
 
 
+def parse_site_dir(mkdocs_path: Path) -> str:
+    """Return the configured ``site_dir`` for a mkdocs config (default ``site``).
+
+    Used to locate build output (e.g. generated PDFs) when a non-default
+    config is selected with ``--config``. INHERIT is not resolved here, but a
+    child config that overrides ``site_dir`` carries it directly, which is
+    exactly the case that matters.
+    """
+    config = _load_mkdocs_config(mkdocs_path)
+    return config.get("site_dir") or "site"
+
+
 def parse_syllabus_nav_file(
     mkdocs_path: Path, section_name: str = "Syllabus"
 ) -> str | None:

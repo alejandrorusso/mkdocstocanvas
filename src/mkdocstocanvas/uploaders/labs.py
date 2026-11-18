@@ -27,16 +27,19 @@ _LAB_NAME_PATTERN = re.compile(r"^lab", re.IGNORECASE)
 _LAB_ASSIGNMENT_PATTERN = re.compile(r"^Lab\s+\d+", re.IGNORECASE)
 
 
-def is_lab_rel_path(rel_path: str | Path) -> bool:
+def is_lab_rel_path(rel_path: str | Path, labs_dir: str = "labs") -> bool:
     """
-    True if a docs-relative path is a lab file (labs/lab*.md, case-insensitive).
+    True if a docs-relative path is a lab file (``<labs_dir>/lab*.md``,
+    case-insensitive).
 
-    Files under labs/ that do not match are regular pages, so they are
-    uploaded as pages and added to modules like any other page.
+    ``labs_dir`` is the docs-relative directory that holds the lab files
+    ("labs" by default). Files under it that do not match the name pattern are
+    regular pages, so they are uploaded as pages and added to modules like any
+    other page.
     """
     path = Path(rel_path)
     return (
-        path.parent.as_posix() == "labs"
+        path.parent.as_posix() == labs_dir
         and path.suffix.lower() == ".md"
         and bool(_LAB_NAME_PATTERN.match(path.name))
     )
@@ -116,16 +119,20 @@ class LabUploader(ContentUploader):
         )
 
 
-def find_lab_files(docs_root: Path = Path("docs")) -> list[Path]:
-    """Find all lab files (via is_lab_rel_path) under docs_root/labs/, sorted by lab number."""
-    labs_dir = docs_root / "labs"
+def find_lab_files(
+    docs_root: Path = Path("docs"), labs_dir: str = "labs"
+) -> list[Path]:
+    """Find all lab files (via is_lab_rel_path) under docs_root/<labs_dir>/, sorted by lab number."""
+    labs_path = docs_root / labs_dir
 
     # Ensure the directory exists to avoid errors
-    if not labs_dir.is_dir():
+    if not labs_path.is_dir():
         return []
 
     labs = [
-        p for p in labs_dir.glob("*.md") if is_lab_rel_path(p.relative_to(docs_root))
+        p
+        for p in labs_path.glob("*.md")
+        if is_lab_rel_path(p.relative_to(docs_root), labs_dir)
     ]
 
     def _sort_key(p: Path) -> int:
@@ -139,15 +146,16 @@ def find_lab_files(docs_root: Path = Path("docs")) -> list[Path]:
 def upload_all_labs(
     client: CanvasUploader,
     docs_root: str = "docs",
+    labs_dir: str = "labs",
     force: bool = False,
     verbose: bool = False,
 ) -> None:
     """Find all lab files and upload them as Canvas assignments."""
     require_connection(client)
 
-    lab_files = find_lab_files(Path(docs_root))
+    lab_files = find_lab_files(Path(docs_root), labs_dir)
     if not lab_files:
-        err_console.print(f"No lab files found under {docs_root}/labs/")
+        err_console.print(f"No lab files found under {docs_root}/{labs_dir}/")
 
     if verbose:
         console.print(f"[dim]Found {len(lab_files)} lab file(s).[/dim]")
