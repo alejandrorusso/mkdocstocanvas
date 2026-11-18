@@ -326,6 +326,7 @@ def upload_all_modules(
     pdf_root: str = "pdf",
     mkdocs_path: str = "mkdocs.yml",
     labs_dir: str = "labs",
+    cache: str = ".canvas_upload_state.json",
     add_pdf: bool = False,
     verbose: bool = False,
 ) -> None:
@@ -346,6 +347,7 @@ def upload_all_modules(
         client=client,
         docs_root=Path(docs_root),
         pdf_root=Path(pdf_root),
+        cache=cache,
         add_pdf=add_pdf,
         verbose=verbose,
         syllabus_rel_path=syllabus_rel_path,
@@ -372,6 +374,7 @@ def delete_all_modules(
     force: bool = False,
     all_items: bool = False,
     mkdocs_path: str = "mkdocs.yml",
+    cache: str = ".canvas_upload_state.json",
 ) -> None:
     """
     Delete modules from the Canvas course.
@@ -389,7 +392,7 @@ def delete_all_modules(
         raise typer.Exit(1) from e
 
     if not all_items:
-        managed = ModuleUploader(client)._managed_modules(
+        managed = ModuleUploader(client, cache=cache)._managed_modules(
             modules, _section_names_from_mkdocs(mkdocs_path)
         )
         skipped = len(modules) - len(managed)

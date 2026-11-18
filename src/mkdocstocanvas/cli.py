@@ -52,6 +52,14 @@ def main(
             "as Canvas assignments.",
         ),
     ] = "labs",
+    cache: Annotated[
+        str,
+        typer.Option(
+            "--cache",
+            help="Path to the incremental upload-state file. Use a distinct file "
+            "per Canvas target so their states stay isolated.",
+        ),
+    ] = ".canvas_upload_state.json",
 ):
     """Uploads a mkdocs project to canvas.
 
@@ -63,6 +71,7 @@ def main(
     ctx.obj["config"] = config
     ctx.obj["env_file"] = env_file
     ctx.obj["labs_dir"] = labs_dir
+    ctx.obj["cache"] = cache
 
 
 def get_client(ctx: typer.Context) -> CanvasUploader:
@@ -239,6 +248,7 @@ def upload_pages(
         client,
         mkdocs_path=ctx.obj.get("config", "mkdocs.yml"),
         labs_dir=ctx.obj.get("labs_dir", "labs"),
+        cache=ctx.obj.get("cache", ".canvas_upload_state.json"),
         force=force,
         verbose=verbose,
     )
@@ -264,6 +274,7 @@ def upload_modules(
         get_client(ctx),
         mkdocs_path=ctx.obj.get("config", "mkdocs.yml"),
         labs_dir=ctx.obj.get("labs_dir", "labs"),
+        cache=ctx.obj.get("cache", ".canvas_upload_state.json"),
         add_pdf=add_pdf,
         verbose=verbose,
     )
@@ -285,6 +296,7 @@ def upload_labs(
     upload_all_labs(
         get_client(ctx),
         labs_dir=ctx.obj.get("labs_dir", "labs"),
+        cache=ctx.obj.get("cache", ".canvas_upload_state.json"),
         force=force,
         verbose=verbose,
     )
@@ -307,7 +319,9 @@ def rebuild_cache(
     """
     client: CanvasUploader = get_client(ctx)
     rebuild_cache_from_canvas(
-        client, Path(".canvas_upload_state.json"), docs_root=docs_root
+        client,
+        Path(ctx.obj.get("cache", ".canvas_upload_state.json")),
+        docs_root=docs_root,
     )
     console.print("[bold green]Cache rebuilt.[/bold green]")
 
@@ -377,6 +391,7 @@ def delete_modules(
         force=force,
         all_items=all_items,
         mkdocs_path=ctx.obj.get("config", "mkdocs.yml"),
+        cache=ctx.obj.get("cache", ".canvas_upload_state.json"),
     )
 
 
@@ -388,7 +403,11 @@ def delete_labs(
     ] = False,
 ):
     """Deletes all lab assignments."""
-    delete_all_labs(get_client(ctx), force=force)
+    delete_all_labs(
+        get_client(ctx),
+        force=force,
+        cache=ctx.obj.get("cache", ".canvas_upload_state.json"),
+    )
 
 
 if __name__ == "__main__":
