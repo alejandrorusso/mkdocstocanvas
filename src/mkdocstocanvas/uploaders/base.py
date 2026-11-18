@@ -287,10 +287,16 @@ class ContentUploader:
             candidate = Path(file_path)
             if file_path.startswith(("./", "../")):
                 full_path = (markdown_dir / candidate).resolve()
+            elif candidate.is_absolute():
+                full_path = candidate
             else:
+                # Bare relative path: mkdocs resolves these relative to the
+                # page, so prefer that. Fall back to the docs root so content
+                # that relied on docs-root-relative bare paths keeps working.
+                page_rel = (markdown_dir / candidate).resolve()
                 full_path = (
-                    candidate
-                    if candidate.is_absolute()
+                    page_rel
+                    if page_rel.exists()
                     else (docs_root_abs / candidate).resolve()
                 )
 
