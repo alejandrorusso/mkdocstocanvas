@@ -10,6 +10,7 @@ A complete system for publishing MkDocs-based course content to Canvas LMS, with
 - 🚀 **Incremental updates** — MD5-based caching; only changed files are uploaded
 - 🛡️ **Safe deletes** — uploaded content carries an invisible ownership marker; manually created Canvas content is never touched
 - 🧪 **Lab management** — `docs/labs/lab*.md` files become Canvas assignments
+- 🧩 **Include directives** — `{% include-markdown %}` / `{% include %}` are expanded on upload, so wrapper pages publish their included content
 - 🧮 **Rich content** — LaTeX math, Pygments syntax highlighting, admonitions, tables
 - 📊 **Excel rendering** — embed spreadsheets with full color preservation
 - ♻️ **Cache recovery** — a lost upload cache can be rebuilt from Canvas

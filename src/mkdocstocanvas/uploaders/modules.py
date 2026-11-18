@@ -206,7 +206,7 @@ class ModuleUploader(ContentUploader):
                 continue
 
             try:
-                title = extract_title_text(full_path)
+                title = extract_title_text(full_path, self.docs_root)
             except (OSError, UnicodeDecodeError):
                 title = None
             if not title:
