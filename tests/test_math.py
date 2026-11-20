@@ -123,3 +123,66 @@ class TestBackslashDelimiters:
         assert "$$" in html
         assert r"\( \pi_{Low} \)" in html
         assert "<em>" not in html
+
+
+class TestCodeIsNotMath:
+    """$ and \\( in code are code, not math delimiters."""
+
+    def test_inline_code_dollars_untouched(self):
+        md = "The operator `$` is application: `f $ x = f x`."
+        assert roundtrip(md) == md
+
+    def test_text_between_code_spans_untouched(self):
+        md = "Use `$` here and `$` there, with *emphasis* between."
+        assert roundtrip(md) == md
+
+    def test_double_backtick_span(self):
+        md = "Write ``a ` $b$ `` literally."
+        assert roundtrip(md) == md
+
+    def test_unmatched_backtick_is_text(self):
+        assert roundtrip("a ` b $x$") == r"a ` b \(x\)"
+
+    def test_fenced_code_dollars_untouched(self):
+        md = "```haskell\nmain = print $ sum $ map f xs\n```\n\nAfter $y$."
+        assert (
+            roundtrip(md)
+            == "```haskell\nmain = print $ sum $ map f xs\n```\n\nAfter \\(y\\)."
+        )
+
+    def test_tilde_fence_and_unclosed_fence(self):
+        assert roundtrip("~~~\n$a$\n~~~\n") == "~~~\n$a$\n~~~\n"
+        assert roundtrip("```\n$a$ and $b$") == "```\n$a$ and $b$"
+
+    def test_backslash_paren_in_code_untouched(self):
+        md = 'Write `printf("\\(%d\\)")` or `\\[x\\]`.'
+        assert roundtrip(md) == md
+
+    def test_math_still_works_around_code(self):
+        assert roundtrip("$x$ and `$` and $y$") == r"\(x\) and `$` and \(y\)"
+        assert roundtrip(r"\(x\) and `$` and \(y\)") == r"\(x\) and `$` and \(y\)"
+
+    def test_escaped_dollar_is_literal(self):
+        assert roundtrip(r"## The \$ operator") == "## The $ operator"
+        assert roundtrip(r"costs \$5 and \$10") == "costs $5 and $10"
+
+    def test_full_pipeline_haskell(self):
+        from pathlib import Path
+
+        from mkdocstocanvas.processing.markdown import process_markdown_to_html
+
+        class _Page:
+            path = Path("page.md")
+            content = (
+                "Use `<$>` for `fmap` and `$` for application.\n\n"
+                "```haskell\n"
+                "main = print $ length <$> Just [1, 2, 3]\n"
+                "```\n\n"
+                "Here *emphasis* is still emphasis, and \\( x_1 \\) is math.\n"
+            )
+
+        html = process_markdown_to_html(_Page())  # type: ignore[arg-type]
+        assert "\\(" in html and "x_1" in html
+        assert "<em>emphasis</em>" in html
+        assert "MATH" not in html
+        assert html.count("$") == 4
