@@ -7,23 +7,23 @@ See `AGENTS.md` for the full architectural rationale behind each item.
 
 ## Phase 1 — Fix broken workflows & clean stale artifacts (low risk, unblocking)
 
-- [ ] Rewrite `Makefile` to call the `mkdocstocanvas` CLI instead of the deleted
+- [x] Rewrite `Makefile` to call the `mkdocstocanvas` CLI instead of the deleted
       `scripts/upload_*.py` files. Every target currently references scripts that
       don't exist.
-- [ ] Rewrite `src/rebuild_canvas.sh` to call `mkdocstocanvas upload-all` (or
+- [x] Rewrite `src/rebuild_canvas.sh` to call `mkdocstocanvas upload-all` (or
       delete it — the CLI's `upload-all` command already does the same thing).
-- [ ] Decide on the PDF pipeline: either implement the missing
+- [x] Decide on the PDF pipeline: either implement the missing
       `scripts/rename_pdfs_with_order.py` or remove references to it from the
       Makefile, README, and `ModuleUploader._normalize_stem`. Currently two
       divergent PDF pipelines exist and neither fully works.
-- [ ] Delete `scripts/__pycache__/canvas_processing.cpython-311.pyc` (orphaned
+- [x] Delete `scripts/__pycache__/canvas_processing.cpython-311.pyc` (orphaned
       bytecode from a deleted module).
-- [ ] Delete committed build artifacts: `dist/` (74 MB sdist + wheel).
-- [ ] Fix README "Project Structure" section — still lists `scripts/upload_*.py`
+- [x] Delete committed build artifacts: `dist/` (74 MB sdist + wheel).
+- [x] Fix README "Project Structure" section — still lists `scripts/upload_*.py`
       which no longer exist.
-- [ ] Fix README Python version: says 3.8, `pyproject.toml` says `>=3.10` and
+- [x] Fix README Python version: says 3.8, `pyproject.toml` says `>=3.10` and
       uses `str | None`. README is wrong.
-- [ ] Pick one config mechanism: `tokens.sh` (sourced) vs `.env` (python-dotenv).
+- [x] Pick one config mechanism: `tokens.sh` (sourced) vs `.env` (python-dotenv).
       Document the chosen one; remove or deprecate the other.
 - [ ] Make `create_client` raise a clear error when `CANVAS_BASE_URL` is unset
       instead of silently defaulting to `canvas.instructure.com` (causes
@@ -33,10 +33,10 @@ See `AGENTS.md` for the full architectural rationale behind each item.
 
 ## Phase 2 — Add tests, lint, typecheck (before refactoring)
 
-- [ ] Add `[tool.ruff]` config to `pyproject.toml`.
+- [x] Add `[tool.ruff]` config to `pyproject.toml`.
 - [ ] Add `mypy` or tighten `pyright` config; remove the `# pyright: ignore`
       sprinkled in `pages.py` once types are honest.
-- [ ] Add `pytest` + dev extras (`[project.optional-dependencies].dev`).
+- [x] Add `pytest` + dev extras (`[project.optional-dependencies].dev`).
 - [ ] Add a CI skeleton (GitHub Actions: ruff + mypy + pytest on push).
 - [ ] Write golden/master tests for `process_markdown_to_html` on sample
       inputs — captures current behaviour so refactors don't silently regress.
@@ -48,7 +48,7 @@ See `AGENTS.md` for the full architectural rationale behind each item.
 
 ## Phase 3 — Split `CanvasUploader` + pagination + typed errors
 
-- [ ] Extract a `_paginate(url, params)` generator; remove the 3× copy-pasted
+- [x] Extract a `_paginate(url, params)` generator; remove the 3× copy-pasted
       Link-header loop in `list_pages`/`list_modules`/`list_assignments`.
 - [ ] Define typed exceptions: `CanvasAuthError`, `CanvasNotFoundError`,
       `CanvasAPIError`, `CanvasRateLimitError`.
@@ -76,7 +76,7 @@ See `AGENTS.md` for the full architectural rationale behind each item.
 - [ ] Split `pages_cache` into `pages` / `labs` / `files` sub-caches.
 - [ ] Fix `labs.py:67` writing a partial `{"canvas_url": url}` entry that can
       clobber a real page entry on path collision.
-- [ ] Stop `_collect_mentions` from nuking `mentioned_by` on every entry
+- [x] Stop `_collect_mentions` from nuking `mentioned_by` on every entry
       before rebuilding (`pages.py:329`) — if the run aborts, the index is gone.
 - [ ] Prune `mentioned_by` entries for deleted files (no pruning currently).
 
@@ -120,12 +120,12 @@ See `AGENTS.md` for the full architectural rationale behind each item.
       document) with `HtmlFormatter(noclasses=True)` or an HTML parser
       (BeautifulSoup).
 - [ ] Same for `style_admonitions` — use an HTML parser, not string replace.
-- [ ] Delete dead math functions (`process_math_block`, `wrap_standalone_align`
+- [x] Delete dead math functions (`process_math_block`, `wrap_standalone_align`
       in `math.py`, `protect_math_content`/`restore_math_content`,
       `preserve_linebreaks_in_math`) — only `robust_math_protection` is called.
 - [ ] Replace `§UNDERSCORE§`/`§ASTERISK§`/`§TILDE§` sentinels in math
       protection with a token table (placeholder ID → content dict, restore by ID).
-- [ ] Unify the two `wrap_standalone_align` definitions (one in `markdown.py:27`,
+- [x] Unify the two `wrap_standalone_align` definitions (one in `markdown.py:27`,
       one in `math.py:31`).
 
 ## Phase 10 — Layering / dedup / hygiene
