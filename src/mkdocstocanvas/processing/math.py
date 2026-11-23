@@ -87,6 +87,11 @@ def robust_math_protection(content: str) -> str:
     Code is left alone: ``$`` and ``\\(`` in fenced code blocks and inline
     code spans are not math (``$`` is common in Haskell, shell, R, ...).
     An escaped dollar sign (``\\$``) is a plain ``$``.
+
+    Known limitation: indented code blocks (4 spaces, no fence) are scanned
+    for math like text. In MkDocs, 4-space indentation is more often the
+    body of an admonition, a content tab or a list item, where math must
+    keep working, so it is not treated as code.
     """
     result = []
     i = 0

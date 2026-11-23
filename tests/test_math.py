@@ -162,6 +162,22 @@ class TestCodeIsNotMath:
         assert roundtrip("$x$ and `$` and $y$") == r"\(x\) and `$` and \(y\)"
         assert roundtrip(r"\(x\) and `$` and \(y\)") == r"\(x\) and `$` and \(y\)"
 
+    def test_indented_code_is_scanned_as_math(self):
+        # Known limitation: an indented code block (4 spaces, no fence) is
+        # not recognised as code, because in MkDocs 4-space indentation is
+        # more often an admonition, tab or list body, where math must work.
+        # Use a fenced block for code with $ in it.
+        md = "Text\n\n    main = print $ f $ x\n"
+        assert roundtrip(md) == "Text\n\n    main = print \\( f \\) x\n"
+
+    def test_math_in_indented_admonition_body(self):
+        md = "!!! note\n    $x$ and $y$\n"
+        assert roundtrip(md) == "!!! note\n    \\(x\\) and \\(y\\)\n"
+
+    def test_math_in_indented_list_continuation(self):
+        md = "- item\n\n    $x$\n"
+        assert roundtrip(md) == "- item\n\n    \\(x\\)\n"
+
     def test_escaped_dollar_is_literal(self):
         assert roundtrip(r"## The \$ operator") == "## The $ operator"
         assert roundtrip(r"costs \$5 and \$10") == "costs $5 and $10"
