@@ -87,6 +87,10 @@ $$
 
 LaTeX `align` environments are automatically converted to Canvas-compatible `array` form.
 
+`$` and `\(` in code are not math: inline code spans and fenced code blocks are left alone, so code such as Haskell's `f $ x` is safe. Write `\$` for a plain dollar sign in text.
+
+Known limitation: indented code blocks (4 spaces, no fence) are scanned for math like text, because in MkDocs 4-space indentation is more often the body of an admonition, a content tab or a list item. Put code that contains `$` in a fenced block.
+
 ## Code blocks
 
 Fenced code blocks get Pygments syntax highlighting with inline styles:
